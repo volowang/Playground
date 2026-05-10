@@ -1,0 +1,27 @@
+.DS_Store
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+
+.venv/
+rlva/.venv/
+rlva/.venv-linux/
+rlva/.conda-env/
+
+case_diagrams/
+case_training_diagrams/
+case_workflow_diagrams/
+docs/
+project materials/
+generate_case_training_process_diagrams.py
+generate_case_workflow_diagrams.py
+
+outputs/
+
+rlva/outputs/models/
+rlva/outputs/benchmark/models/
+rlva/outputs/benchmark/reports/user_case_notebook.jsonl
+rlva/outputs/benchmark/reports/user_task_log.jsonl
+rlva/outputs/course_dataset/rlva_trace_corpus_close_to_1gb.csv
+rlva/outputs/course_dataset/rlva_trace_corpus_close_to_1gb.csv.gz
