@@ -1,0 +1,97 @@
+{
+  "benchmark_report_dir": "/work2/09796/jingxinw7692/frontera/data_analytics/Playground/rlva/outputs/benchmark/reports",
+  "dataset_path": "/work2/09796/jingxinw7692/frontera/data_analytics/Playground/rlva/outputs/course_dataset/rlva_trace_corpus_close_to_1gb.csv",
+  "dataset_scan_nrows": 0,
+  "measurements": [
+    {
+      "interaction": "Scan raw course dataset",
+      "latency_ms": 9574.868705123663,
+      "layer": "backend",
+      "note": "Sequential CSV scan of the stored course dataset.",
+      "records_per_second": 439024.2967771023,
+      "records_processed": 4203600,
+      "seconds": 9.574868705123663
+    },
+    {
+      "interaction": "Load benchmark report table",
+      "latency_ms": 14.271900057792664,
+      "layer": "backend",
+      "note": "Reads the aggregated evaluation table used by the dashboard.",
+      "records_per_second": 1751.693880896373,
+      "records_processed": 25,
+      "seconds": 0.014271900057792664
+    },
+    {
+      "interaction": "Load seeded summary",
+      "latency_ms": 3.9666183292865753,
+      "layer": "backend",
+      "note": "Loads one precomputed window-summary artifact for live inspection.",
+      "records_per_second": 3025.246949372688,
+      "records_processed": 12,
+      "seconds": 0.003966618329286575
+    },
+    {
+      "interaction": "Compute policy comparison clusters",
+      "latency_ms": 107.65692591667175,
+      "layer": "backend",
+      "note": "Clusters two controller summaries to prepare coordinated comparison views.",
+      "records_per_second": 222.93038553391725,
+      "records_processed": 24,
+      "seconds": 0.10765692591667175
+    },
+    {
+      "interaction": "Build behavior-space view",
+      "latency_ms": 873.3147457242012,
+      "layer": "frontend",
+      "note": "Constructs the linked scatter plot used for focused anomaly inspection.",
+      "records_per_second": 13.740750466830756,
+      "records_processed": 12,
+      "seconds": 0.8733147457242012
+    },
+    {
+      "interaction": "Build temporal-trend view",
+      "latency_ms": 69.56237182021141,
+      "layer": "frontend",
+      "note": "Constructs the linked timeline view for the focused summary windows.",
+      "records_per_second": 172.5070564157128,
+      "records_processed": 12,
+      "seconds": 0.06956237182021141
+    },
+    {
+      "interaction": "Build benchmark-overview view",
+      "latency_ms": 104.00186851620674,
+      "layer": "frontend",
+      "note": "Constructs the multi-environment overview used in the validation narrative.",
+      "records_per_second": 240.3802965915388,
+      "records_processed": 25,
+      "seconds": 0.10400186851620674
+    },
+    {
+      "interaction": "Build policy-comparison view",
+      "latency_ms": 59.64210256934166,
+      "layer": "frontend",
+      "note": "Constructs the cluster-level comparison chart for the active probe case.",
+      "records_per_second": 134.13343352037205,
+      "records_processed": 8,
+      "seconds": 0.05964210256934166
+    }
+  ],
+  "probe_case": {
+    "compare_policy": "ppo",
+    "env": "inventory",
+    "policy": "dqn",
+    "seed": 11
+  },
+  "summary": {
+    "backend_measurements": 4,
+    "backend_median_records_per_second": 2388.4704151345304,
+    "backend_peak_records_per_second": 439024.2967771023,
+    "backend_weighted_records_per_second": 433332.9761705546,
+    "frontend_actions_under_one_second": 4,
+    "frontend_measurements": 4,
+    "frontend_meets_one_second_reference": true,
+    "frontend_response_max_ms": 873.3147457242012,
+    "frontend_response_median_ms": 86.78212016820908
+  },
+  "summary_dir": "/work2/09796/jingxinw7692/frontera/data_analytics/Playground/rlva/outputs/benchmark/summaries"
+}

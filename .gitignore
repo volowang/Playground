@@ -17,8 +17,6 @@ project materials/
 generate_case_training_process_diagrams.py
 generate_case_workflow_diagrams.py
 
-outputs/
-
 rlva/outputs/models/
 rlva/outputs/benchmark/models/
 rlva/outputs/benchmark/reports/user_case_notebook.jsonl

@@ -1,0 +1,176 @@
+{
+  "log_path": "/work2/09796/jingxinw7692/frontera/data_analytics/Playground/rlva/outputs/benchmark/reports/user_task_log.jsonl",
+  "rows": [
+    {
+      "anomaly_score": 0.912,
+      "comparison_changes": 0,
+      "completed_at": "2026-05-08 21:05:46 UTC",
+      "controller": "DQN",
+      "decision": "Escalate this corridor segment for incident review.",
+      "decision_level": "High",
+      "duration_seconds": 46.0,
+      "execution_scenario": "Live traffic-operations triage: investigate a suspicious corridor interval and prepare a handoff for the incident team.",
+      "export_used": true,
+      "exports_triggered": 2,
+      "filter_changes": 2,
+      "focus_changes": 3,
+      "focused_window": "k=5 | t=250-299",
+      "notebook_saves": 1,
+      "notebook_used": true,
+      "question_answers": [
+        {
+          "current_answer": "Focused case `k=5 | t=250-299` has suspicion `0.912` and ranks within the top `2` visible windows.",
+          "evidence_source": "Ranked window list",
+          "question": "Which time segments are unusual enough to require review?"
+        },
+        {
+          "current_answer": "3 nearby windows remain in view, so the user can test whether the signal persists.",
+          "evidence_source": "Timeline + filtered neighborhood",
+          "question": "Is the suspicious behavior isolated or persistent across nearby windows?"
+        },
+        {
+          "current_answer": "Traffic operations analyst should `escalate now` based on the current evidence.",
+          "evidence_source": "Action tab + notebook workflow",
+          "question": "Should the user escalate this controller behavior now or continue monitoring?"
+        }
+      ],
+      "recommended_action": "Use the linked views to inspect neighboring traffic windows, then export the current corridor evidence snapshot.",
+      "regime_shift_score": 0.684,
+      "reviewer_name": "internal pilot walkthrough A",
+      "role": "Traffic operations analyst",
+      "run": 23,
+      "started_at": "2026-05-08 21:05:00 UTC",
+      "support_reason": "incident evidence support",
+      "support_signal": true,
+      "system": "Traffic Signal Control",
+      "task": "Find unusual traffic behavior",
+      "task_key": "Find anomalies",
+      "user_confidence": 4.5,
+      "window_k": 5,
+      "workflow": "Triage corridor incident"
+    },
+    {
+      "anomaly_score": 0.488,
+      "comparison_changes": 0,
+      "completed_at": "2026-05-08 21:11:58 UTC",
+      "controller": "DQN",
+      "decision": "Escalate this corridor segment for incident review.",
+      "decision_level": "High",
+      "duration_seconds": 58.0,
+      "execution_scenario": "Live traffic-operations triage: investigate a suspicious corridor interval and prepare a handoff for the incident team.",
+      "export_used": true,
+      "exports_triggered": 1,
+      "filter_changes": 3,
+      "focus_changes": 4,
+      "focused_window": "k=6 | t=300-349",
+      "notebook_saves": 1,
+      "notebook_used": true,
+      "question_answers": [
+        {
+          "current_answer": "Focused boundary is `k=6 | t=300-349` with change confidence `0.934`.",
+          "evidence_source": "Timeline + linked focus window",
+          "question": "Where does the operating regime appear to change?"
+        },
+        {
+          "current_answer": "3 nearby windows stay inside the focused neighborhood, which helps verify the transition.",
+          "evidence_source": "Timeline neighborhood around the selected window",
+          "question": "Does the focused boundary line up with the strongest evidence in nearby windows?"
+        },
+        {
+          "current_answer": "Escalation signal is `strong` for the current case.",
+          "evidence_source": "Decision summary + intervention overlap",
+          "question": "Does the user have enough evidence to hand the case to incident review?"
+        }
+      ],
+      "recommended_action": "Review the windows immediately before and after the change boundary to confirm the traffic transition.",
+      "regime_shift_score": 0.934,
+      "reviewer_name": "internal pilot walkthrough B",
+      "role": "Traffic operations analyst",
+      "run": 23,
+      "started_at": "2026-05-08 21:11:00 UTC",
+      "support_reason": "shift boundary support",
+      "support_signal": true,
+      "system": "Traffic Signal Control",
+      "task": "Find where the traffic system changed",
+      "task_key": "Locate shift",
+      "user_confidence": 4.0,
+      "window_k": 6,
+      "workflow": "Confirm corridor shift"
+    },
+    {
+      "anomaly_score": 0.731,
+      "behavior_difference": 0.552,
+      "behavior_group": 4,
+      "comparison_changes": 3,
+      "completed_at": "2026-05-08 21:19:03 UTC",
+      "controller": "DQN",
+      "decision": "The strategy is reviewable, but inspect the highlighted corridor evidence before keeping it live.",
+      "decision_level": "Moderate",
+      "duration_seconds": 63.0,
+      "execution_scenario": "Traffic-strategy review: decide whether the active signal controller should remain deployed or whether an alternate plan is safer.",
+      "export_used": true,
+      "exports_triggered": 2,
+      "filter_changes": 2,
+      "focus_changes": 3,
+      "focused_window": "k=5 | t=250-299",
+      "notebook_saves": 0,
+      "notebook_used": false,
+      "outcome_gap": 1.214,
+      "question_answers": [
+        {
+          "current_answer": "Current anchor case is `k=5 | t=250-299` for `DQN` in `Traffic Signal Control`.",
+          "evidence_source": "Ranked windows + linked focus",
+          "question": "Which controller behaves most differently in the current operating context?"
+        },
+        {
+          "current_answer": "Behavior group `4` shows difference `0.552` with outcome gap `1.214`.",
+          "evidence_source": "Controller-comparison view",
+          "question": "Is the difference visible only in reward, or also in behavior structure?"
+        },
+        {
+          "current_answer": "User should trust the controller with lower risk windows and weaker cross-policy divergence in the active scenario.",
+          "evidence_source": "Decision summary + comparison export",
+          "question": "Which controller should the user trust more for this scenario?"
+        }
+      ],
+      "recommended_action": "Export both the focused window and the focused controller-comparison snapshot for the signal strategy review.",
+      "regime_shift_score": 0.612,
+      "reviewer_name": "internal pilot walkthrough C",
+      "role": "Traffic operations supervisor",
+      "run": 23,
+      "started_at": "2026-05-08 21:18:00 UTC",
+      "support_reason": "controller comparison evidence",
+      "support_signal": true,
+      "system": "Traffic Signal Control",
+      "task": "Compare two signal strategies",
+      "task_key": "Compare policies",
+      "user_confidence": 4.5,
+      "window_k": 5,
+      "workflow": "Compare controller strategies"
+    }
+  ],
+  "summary": {
+    "average_user_confidence": 4.333333333333333,
+    "completed_tasks": 3,
+    "export_completion_rate": 1.0,
+    "median_comparison_changes": 0.0,
+    "median_duration_seconds": 58.0,
+    "median_exports_triggered": 2.0,
+    "median_filter_changes": 2.0,
+    "median_focus_changes": 3.0,
+    "notebook_usage_rate": 0.6666666666666666,
+    "roles": {
+      "Traffic operations analyst": 2,
+      "Traffic operations supervisor": 1
+    },
+    "support_signal_rate": 1.0,
+    "systems": {
+      "Traffic Signal Control": 3
+    },
+    "tasks_by_type": {
+      "Compare two signal strategies": 1,
+      "Find unusual traffic behavior": 1,
+      "Find where the traffic system changed": 1
+    }
+  }
+}

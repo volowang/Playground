@@ -1,0 +1,4 @@
+env,policy,seed,trace_path,summary_path
+inventory,dqn,11,/work2/09796/jingxinw7692/frontera/playground/Playground/rlva/outputs/benchmark/traces/inventory/dqn/seed_11.csv,/work2/09796/jingxinw7692/frontera/playground/Playground/rlva/outputs/benchmark/summaries/inventory/dqn/seed_11.csv
+traffic,dqn,23,/work2/09796/jingxinw7692/frontera/playground/Playground/rlva/outputs/benchmark/traces/traffic/dqn/seed_23.csv,/work2/09796/jingxinw7692/frontera/playground/Playground/rlva/outputs/benchmark/summaries/traffic/dqn/seed_23.csv
+lunarlander,dqn,11,/work2/09796/jingxinw7692/frontera/playground/Playground/rlva/outputs/benchmark/traces/lunarlander/dqn/seed_11.csv,/work2/09796/jingxinw7692/frontera/playground/Playground/rlva/outputs/benchmark/summaries/lunarlander/dqn/seed_11.csv
