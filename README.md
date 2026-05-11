@@ -22,21 +22,25 @@ It does not include local virtual environments, caches, or unrelated course mate
 
 Use Python `3.10+`.
 
-From the repository root:
+From a fresh clone:
+
+```bash
+git clone https://github.com/volowang/Playground.git
+cd Playground
+python -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+export PYTHONPATH=.
+streamlit run rlva/src/app.py
+```
+
+If `.venv` already exists locally, start from the activation step:
 
 ```bash
 source .venv/bin/activate
 export PYTHONPATH=.
 streamlit run rlva/src/app.py
-```
-
-If `.venv` is not already present locally, create it first:
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
 ```
 
 Open the Streamlit URL shown in the terminal, typically `http://localhost:8501`.
