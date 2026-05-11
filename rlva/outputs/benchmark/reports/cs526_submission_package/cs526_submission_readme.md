@@ -1,6 +1,6 @@
 # CS526 Submission Package
 
-This directory contains the course-facing materials that make the Traffic Operations Review Studio final project easy to grade and easy to present.
+This directory contains the course-facing materials that make the Decision System Review Studio final project easy to grade and easy to present.
 
 ## What Is Included
 
@@ -9,6 +9,7 @@ This directory contains the course-facing materials that make the Traffic Operat
 - `cs526_video_script.md`: 3+ minute narration script for the required video.
 - `cs526_submission_checklist.md`: final handoff checklist for code, data, report, and media.
 - `course_task_performance_report.md`: exported evidence that operators can complete the intended review tasks.
+- `../course_evidence_report.md`: static text-and-image replacement for the removed in-app course evidence workspace.
 
 ## Project Snapshot
 
@@ -24,5 +25,5 @@ This directory contains the course-facing materials that make the Traffic Operat
 
 ## Recommended Presentation Command
 
-`source rlva/.venv-linux/bin/activate && export PYTHONPATH=. && streamlit run rlva/src/app.py`
+`source .venv/bin/activate && export PYTHONPATH=. && streamlit run rlva/src/app.py`
 

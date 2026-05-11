@@ -2,10 +2,10 @@
 
 ## Core Deliverables
 
-- [ ] Working code runs from `source rlva/.venv-linux/bin/activate`.
+- [ ] Working code runs from `source .venv/bin/activate`.
 - [ ] Streamlit demo launches with `PYTHONPATH=. streamlit run rlva/src/app.py`.
-- [ ] Final project brief exists at `/work2/09796/jingxinw7692/frontera/data_analytics/Playground/rlva/outputs/benchmark/reports/cs526_final_project_brief.md`.
-- [ ] Submission package directory exists at `/work2/09796/jingxinw7692/frontera/data_analytics/Playground/rlva/outputs/benchmark/reports/cs526_submission_package`.
+- [ ] Final project brief exists at `/Users/jingxinw/Documents/final/Playground/rlva/outputs/benchmark/reports/cs526_final_project_brief.md`.
+- [ ] Submission package directory exists at `/Users/jingxinw/Documents/final/Playground/rlva/outputs/benchmark/reports/cs526_submission_package`.
 - [ ] Interactivity report exists at `rlva/outputs/benchmark/reports/course_interactivity_report.md`.
 - [ ] User task performance report exists at `rlva/outputs/benchmark/reports/course_task_performance_report.md`.
 

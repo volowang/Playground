@@ -1,6 +1,14 @@
-# Traffic Operations Review Studio
+# Decision System Review Studio
 
-This repository contains the deployable dashboard version of `Traffic Operations Review Studio`, a traffic-operations visual analytics project built on top of `RLVA`.
+This repository contains the deployable dashboard version of `Decision System Review Studio`, a user-facing visual analytics project built on top of `RLVA`.
+
+The dashboard helps users review controller behavior across five scenarios:
+
+- Traffic signal control
+- Inventory planning
+- Service queue management
+- CartPole control QA
+- LunarLander robotics safety
 
 The GitHub version includes:
 
@@ -17,15 +25,28 @@ Use Python `3.10+`.
 From the repository root:
 
 ```bash
-python -m venv .venv
 source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
 export PYTHONPATH=.
 streamlit run rlva/src/app.py
 ```
 
+If `.venv` is not already present locally, create it first:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
 Open the Streamlit URL shown in the terminal, typically `http://localhost:8501`.
+
+## What To Show In The Demo
+
+1. Choose one of the five scenario buttons at the top.
+2. Click a point in any chart to see what that point means and what system problem it may indicate.
+3. Compare controllers in the lower charts.
+4. Export a decision memo from the Save / Export section.
 
 ## Dataset Delivery
 

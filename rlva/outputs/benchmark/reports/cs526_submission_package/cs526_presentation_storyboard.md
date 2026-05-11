@@ -2,8 +2,8 @@
 
 ## Slide 1. User And Problem
 
-- Introduce the primary user: a traffic operations analyst reviewing suspicious corridor behavior.
-- State the product name and the three user questions: suspicious interval, change boundary, and safer signal strategy.
+- Introduce the five primary user groups: traffic, inventory, queueing, control QA, and robotics safety reviewers.
+- State the product name and the three user questions: risky window, behavior-change boundary, and safer controller.
 
 ## Slide 2. Data
 
@@ -12,18 +12,18 @@
 
 ## Slide 3. Workflow Demo
 
-- Show the user workspace path: Mission -> Evidence -> Action -> Notebook -> Export -> Task Performance.
+- Show the user flow: choose system -> click a chart -> inspect focused evidence -> compare controllers -> export memo.
 - Emphasize that the interface is coordinated, task-driven, and produces work products for an operator.
 
 ## Slide 4. Live Incident Triage Story
 
-- Lead with the traffic case, then connect it to the strongest anomaly evidence: traffic / ppo anomaly AUC 0.937 +/- 0.021.
-- Use ranked evidence, the behavior map, and the timeline to connect the number back to a specific suspicious corridor window.
+- Lead with one selected system, then connect it to the strongest anomaly evidence: traffic / ppo anomaly AUC 0.937 +/- 0.021.
+- Use ranked evidence, the behavior map, and the timeline to connect the number back to a specific risky window.
 
-## Slide 5. Corridor Shift Confirmation
+## Slide 5. Behavior Shift Confirmation
 
 - Lead with traffic / pg shift AUC 0.940 +/- 0.020.
-- Show temporal evidence and explain where the corridor regime boundary appears.
+- Show temporal evidence and explain where the operating-regime boundary appears.
 
 ## Slide 6. Why This Is More Than A Dashboard
 
@@ -36,10 +36,11 @@
 - Report median task completion time: 58.0 seconds.
 - Report backend weighted throughput: 433,333 records/s.
 - Report front-end median response: 86.8 ms.
+- State that every main Plotly chart is clickable and linked to a user decision.
 - State clearly that operators can both complete tasks and interact within the one-second classroom-response target by reusing precomputed summaries.
 
 ## Slide 8. Closing
 
 - Summarize the value of extracted information, methods/models used, task performance, and interface interactivity.
-- End with the main traffic-operations demo path inside the Streamlit application.
+- End with the five-system user dashboard inside the Streamlit application.
 

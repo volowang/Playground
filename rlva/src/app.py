@@ -87,11 +87,46 @@ def _selected_cluster(selection_event: Any) -> Optional[int]:
     if not points:
         return None
     point = points[0]
+    custom = point.get("customdata") if isinstance(point, dict) else None
+    if isinstance(custom, (list, tuple)) and custom:
+        try:
+            return int(custom[0])
+        except (TypeError, ValueError):
+            pass
     x_value = point.get("x") if isinstance(point, dict) else None
     try:
         return int(x_value)
     except (TypeError, ValueError):
         return None
+
+
+def _selected_customdata(selection_event: Any) -> List[Any]:
+    points = _extract_points(selection_event)
+    if not points:
+        return []
+    point = points[0]
+    if not isinstance(point, dict):
+        return []
+    custom = point.get("customdata")
+    if isinstance(custom, (list, tuple)):
+        return list(custom)
+    if custom is None:
+        return []
+    return [custom]
+
+
+def _selected_label(selection_event: Any) -> Optional[str]:
+    points = _extract_points(selection_event)
+    if not points:
+        return None
+    point = points[0]
+    if not isinstance(point, dict):
+        return None
+    for key in ("label", "x", "y"):
+        value = point.get(key)
+        if value is not None:
+            return str(value)
+    return None
 
 
 def _format_policy_name(policy: str) -> str:
@@ -103,6 +138,20 @@ def _format_policy_name(policy: str) -> str:
         "heuristic": "Rule Baseline",
     }
     return display_names.get(policy, policy.replace("_", " ").title())
+
+
+def _policy_from_display(label: str) -> Optional[str]:
+    for policy in BENCHMARK_POLICIES:
+        if _format_policy_name(policy) == label or policy == label:
+            return policy
+    return None
+
+
+def _env_from_display(label: str) -> Optional[str]:
+    for env_name in ENVIRONMENTS:
+        if _format_env_name(env_name) == label or _scenario_profile(env_name)["short_label"] == label or env_name == label:
+            return env_name
+    return None
 
 
 def _format_feature_group(name: str) -> str:
@@ -148,21 +197,69 @@ def _plotly_chart_with_optional_selection(
 
 
 METRIC_LABELS = {
-    "anomaly_auc": "Anomaly AUC",
-    "shift_auc": "Shift AUC",
+    "anomaly_auc": "Find unusual windows",
+    "shift_auc": "Find changes",
     "reward_mean": "Reward Mean",
-    "reward_jump_auc": "Reward-Jump AUC",
-    "shift_localization_error": "Shift Localization Error",
+    "reward_jump_auc": "Find result drops",
+    "shift_localization_error": "Change timing error",
 }
 
 LOWER_IS_BETTER_METRICS = {"shift_localization_error"}
 
-PRIMARY_ANALYST_ROLE = "Traffic operations analyst"
-PRIMARY_SUPERVISOR_ROLE = "Traffic operations supervisor"
-PRIMARY_OPERATIONS_OWNER = "traffic incident review team"
-PRIMARY_SUPERVISOR_OWNER = "signal strategy review board"
-PRIMARY_PRODUCT_NAME = "Traffic Operations Review Studio"
+PRIMARY_ANALYST_ROLE = "Operations analyst"
+PRIMARY_SUPERVISOR_ROLE = "Operations supervisor"
+PRIMARY_OPERATIONS_OWNER = "operations review team"
+PRIMARY_SUPERVISOR_OWNER = "controller review board"
+PRIMARY_PRODUCT_NAME = "Decision System Review Studio"
 PRIMARY_PRODUCT_ENGINE = "RLVA"
+
+SYSTEM_PROFILES: Dict[str, Dict[str, str]] = {
+    "traffic": {
+        "short_label": "Traffic",
+        "user": "Traffic operations analyst",
+        "owner": "traffic incident desk",
+        "problem": "Find risky signal-control windows and confirm corridor regime shifts.",
+        "high_action": "Escalate corridor incident and review the active signal plan.",
+        "moderate_action": "Review adjacent windows before keeping the signal plan live.",
+        "monitor_action": "Keep monitoring; no immediate handoff is needed.",
+    },
+    "inventory": {
+        "short_label": "Inventory",
+        "user": "Inventory planner",
+        "owner": "replenishment planning desk",
+        "problem": "Spot demand shocks, stock-risk windows, and unstable replenishment policies.",
+        "high_action": "Escalate stock-risk window and revise the replenishment rule.",
+        "moderate_action": "Review demand-shift evidence before approving the controller.",
+        "monitor_action": "Monitor the policy; current evidence is low risk.",
+    },
+    "queue": {
+        "short_label": "Queue",
+        "user": "Service operations manager",
+        "owner": "queue operations desk",
+        "problem": "Find congestion windows and compare service-scheduling controllers.",
+        "high_action": "Escalate service congestion and rebalance scheduling policy.",
+        "moderate_action": "Review nearby windows before keeping the scheduler active.",
+        "monitor_action": "Keep monitoring normal service behavior.",
+    },
+    "cartpole": {
+        "short_label": "CartPole",
+        "user": "Control QA engineer",
+        "owner": "controller validation desk",
+        "problem": "Catch unstable controller behavior before deployment.",
+        "high_action": "Block rollout and inspect the unstable controller window.",
+        "moderate_action": "Run controller comparison before approving the policy.",
+        "monitor_action": "Controller appears stable in the current window.",
+    },
+    "lunarlander": {
+        "short_label": "LunarLander",
+        "user": "Robotics safety reviewer",
+        "owner": "robotics safety desk",
+        "problem": "Detect unsafe descent behavior and policy-change windows.",
+        "high_action": "Pause deployment and review the risky landing behavior.",
+        "moderate_action": "Review adjacent descent windows and compare controllers.",
+        "monitor_action": "Continue monitoring; current landing behavior is low risk.",
+    },
+}
 
 CASE_STUDY_NOTES: Dict[Tuple[str, str, int], Dict[str, str]] = {
     (
@@ -193,7 +290,7 @@ CASE_STUDY_NOTES: Dict[Tuple[str, str, int], Dict[str, str]] = {
 
 OVERVIEW_TOPICS: Dict[str, str] = {
     "Problem": "Traffic operations teams need to detect corridor incidents, confirm when signal behavior changes, and justify whether the active strategy should remain deployed. The project summarizes controller traces into reviewable windows instead of relying on aggregate reward alone.",
-    "Data": "The project uses 5 environments (`queue`, `inventory`, `traffic`, `cartpole`, `lunarlander`) and 5 policy families (`pg`, `ppo`, `dqn`, `random`, `heuristic`). The traffic-control workspace is the primary user-facing scenario, while the other environments provide transfer and robustness evidence.",
+    "Data": "The project uses 5 environments (`queue`, `inventory`, `traffic`, `cartpole`, `lunarlander`) and 5 policy families (`pg`, `ppo`, `dqn`, `random`, `heuristic`). Each system is exposed as a user-facing scenario.",
     "Method": "Each trace is converted into window-level behavior summaries. Those summaries drive incident ranking, shift localization, controller comparison, ablation studies, and robustness checks.",
     "Evaluation": "The benchmark evaluates anomaly AUC, shift AUC, reward-jump AUC, localization error, seed stability, feature ablations, robustness to analysis-budget changes, and now completed user-task performance.",
     "Interactivity": "The dashboard links ranked incidents, behavior-space views, temporal views, controller-comparison charts, case notebooks, and review exports so operators can move from alert to documented action.",
@@ -215,16 +312,18 @@ TASK_FOCUS_COPY: Dict[str, str] = {
 }
 
 DEMO_TASK_COPY: Dict[str, str] = {
-    "Find anomalies": "Locate suspicious traffic-control windows that deserve incident review before they escalate into corridor-wide problems.",
-    "Locate shift": "Pinpoint when traffic conditions or controller behavior changed and whether the review system finds the boundary quickly.",
-    "Compare policies": "Contrast alternative traffic-signal strategies behaviorally, not just by reward, using cluster-level divergence.",
-    "Tell the project story": "Follow a guided final-presentation path that moves from traffic-operations problem to evidence to operator action.",
+    "Find anomalies": "Find high-risk time windows.",
+    "Locate shift": "Find where system behavior changed.",
+    "Compare policies": "Compare controllers by behavior and outcome.",
+    "Tell the project story": "Review the system end-to-end.",
 }
 
 DEMO_PRESETS: Dict[str, Dict[str, Any]] = {
-    "Traffic incident": {"env": "traffic", "policy": "dqn", "seed": 23, "task": "Find anomalies", "metric": "anomaly_score"},
-    "Traffic shift": {"env": "traffic", "policy": "dqn", "seed": 23, "task": "Locate shift", "metric": "regime_shift_score"},
-    "Traffic strategy comparison": {"env": "traffic", "policy": "dqn", "seed": 23, "task": "Compare policies", "metric": "anomaly_score"},
+    "Traffic": {"env": "traffic", "policy": "dqn", "seed": 23, "task": "Find anomalies", "metric": "anomaly_score"},
+    "Inventory": {"env": "inventory", "policy": "dqn", "seed": 23, "task": "Find anomalies", "metric": "anomaly_score"},
+    "Queue": {"env": "queue", "policy": "dqn", "seed": 23, "task": "Find anomalies", "metric": "anomaly_score"},
+    "CartPole": {"env": "cartpole", "policy": "dqn", "seed": 23, "task": "Find anomalies", "metric": "anomaly_score"},
+    "LunarLander": {"env": "lunarlander", "policy": "dqn", "seed": 23, "task": "Find anomalies", "metric": "anomaly_score"},
 }
 
 USER_ROLE_COPY: Dict[str, str] = {
@@ -301,12 +400,18 @@ USER_CASE_STATUS_OPTIONS = [
 ]
 
 USER_NOTE_TAG_OPTIONS = [
-    "Suspicious corridor behavior",
-    "Traffic regime change",
+    "High-risk system behavior",
+    "Operating regime change",
     "Strategy comparison evidence",
     "Follow-up required",
     "Exported to review packet",
 ]
+
+ACTION_COLOR_MAP = {
+    "Escalate now": "#b84a39",
+    "Review next": "#f0a202",
+    "Monitor": "#355c7d",
+}
 
 
 def _inject_dashboard_css() -> None:
@@ -314,10 +419,7 @@ def _inject_dashboard_css() -> None:
         """
         <style>
         .stApp {
-            background:
-                radial-gradient(circle at top left, rgba(208, 230, 244, 0.45), transparent 28%),
-                radial-gradient(circle at top right, rgba(243, 211, 180, 0.40), transparent 24%),
-                linear-gradient(180deg, #f7f3ed 0%, #f6f8fb 52%, #eef3f8 100%);
+            background: #f5f7fa;
         }
         .block-container {
             padding-top: 1.5rem;
@@ -326,10 +428,10 @@ def _inject_dashboard_css() -> None:
         }
         .hero-shell {
             padding: 1.35rem 1.5rem 1.15rem 1.5rem;
-            border-radius: 20px;
+            border-radius: 8px;
             background: linear-gradient(135deg, rgba(20, 54, 86, 0.96), rgba(49, 87, 122, 0.92));
             color: #f7fbff;
-            box-shadow: 0 24px 60px rgba(18, 34, 51, 0.18);
+            box-shadow: 0 12px 32px rgba(18, 34, 51, 0.12);
             margin-bottom: 1rem;
         }
         .hero-kicker {
@@ -367,7 +469,7 @@ def _inject_dashboard_css() -> None:
         div[data-testid="stMetric"] {
             background: rgba(255, 255, 255, 0.82);
             border: 1px solid rgba(39, 68, 93, 0.08);
-            border-radius: 16px;
+            border-radius: 8px;
             padding: 0.85rem 0.9rem 0.75rem 0.9rem;
             box-shadow: 0 14px 34px rgba(39, 68, 93, 0.06);
         }
@@ -382,13 +484,31 @@ def _inject_dashboard_css() -> None:
         .asset-card {
             background: rgba(255, 255, 255, 0.82);
             border: 1px solid rgba(39, 68, 93, 0.10);
-            border-radius: 16px;
+            border-radius: 8px;
             padding: 0.55rem 0.55rem 0.35rem 0.55rem;
             box-shadow: 0 10px 24px rgba(39, 68, 93, 0.05);
         }
         .asset-card-active {
             border: 2px solid rgba(184, 74, 57, 0.55);
             box-shadow: 0 14px 28px rgba(184, 74, 57, 0.10);
+        }
+        .decision-strip {
+            background: #ffffff;
+            border: 1px solid rgba(39, 68, 93, 0.10);
+            border-left: 5px solid #b84a39;
+            border-radius: 8px;
+            padding: 0.9rem 1rem;
+            margin: 0.65rem 0 1rem 0;
+            box-shadow: 0 10px 24px rgba(39, 68, 93, 0.05);
+        }
+        .decision-strip h3 {
+            margin: 0 0 0.25rem 0;
+            font-size: 1.05rem;
+        }
+        .decision-strip p {
+            margin: 0;
+            color: #2f4050;
+            line-height: 1.45;
         }
         </style>
         """,
@@ -404,6 +524,21 @@ def _trigger_rerun() -> None:
     experimental_rerun = getattr(st, "experimental_rerun", None)
     if callable(experimental_rerun):
         experimental_rerun()
+
+
+def _queue_multi_dashboard_update(**updates: Any) -> None:
+    pending = dict(st.session_state.get("_pending_multi_dashboard_update", {}))
+    pending.update(updates)
+    st.session_state["_pending_multi_dashboard_update"] = pending
+    _trigger_rerun()
+
+
+def _apply_pending_multi_dashboard_update() -> None:
+    pending = st.session_state.pop("_pending_multi_dashboard_update", {})
+    if not isinstance(pending, dict):
+        return
+    for key, value in pending.items():
+        st.session_state[key] = value
 
 
 @st.cache_data(show_spinner=False)
@@ -1473,12 +1608,22 @@ def _apply_role_preset(role_name: str) -> None:
 
 def _user_task_label(task_name: str) -> str:
     mapping = {
-        "Find anomalies": "Find unusual traffic behavior",
-        "Locate shift": "Find where the traffic system changed",
-        "Compare policies": "Compare two signal strategies",
-        "Tell the project story": "Walk through the traffic-review system end-to-end",
+        "Find anomalies": "Find risky windows",
+        "Locate shift": "Find behavior change",
+        "Compare policies": "Compare two controllers",
+        "Tell the project story": "Review the system end-to-end",
     }
     return mapping.get(task_name, task_name)
+
+
+def _focus_label(focus_name: str) -> str:
+    mapping = {
+        "Balanced": "Balanced",
+        "Highest risk": "Most urgent",
+        "Change": "Changed behavior",
+        "Task only": "Match goal",
+    }
+    return mapping.get(focus_name, focus_name)
 
 
 def _color_label(color_by: str) -> str:
@@ -2208,145 +2353,893 @@ def _recommended_compare_pair(task_name: str, active_policy: str) -> Tuple[str, 
     return active_policy, "random" if active_policy != "random" else "heuristic"
 
 
-def _render_demo_panel() -> None:
-    _sync_demo_state(default_env="traffic", default_policy="dqn")
+def _scenario_profile(env_name: str) -> Dict[str, str]:
+    return SYSTEM_PROFILES.get(
+        env_name,
+        {
+            "short_label": _format_env_name(env_name),
+            "user": "Operations analyst",
+            "owner": "operations review team",
+            "problem": "Find risky behavior windows and compare controllers.",
+            "high_action": "Escalate the focused window for review.",
+            "moderate_action": "Review nearby windows before approving the controller.",
+            "monitor_action": "Continue monitoring the current behavior.",
+        },
+    )
+
+
+def _apply_system_preset(env_name: str) -> None:
+    profile = _scenario_profile(env_name)
+    st.session_state["multi_env"] = env_name
+    st.session_state["multi_policy"] = "dqn"
+    st.session_state["multi_task"] = "Find anomalies"
+    st.session_state["multi_color_by"] = "anomaly_score"
+    st.session_state["multi_action_filter"] = "All actions"
+    st.session_state["selected_k"] = None
+    st.session_state["selected_cluster"] = None
+    seeds = cached_available_seeds(env_name, "dqn")
+    st.session_state["multi_seed"] = 23 if 23 in seeds else (int(seeds[0]) if seeds else None)
+    _reset_task_session(
+        {
+            "workflow": profile["short_label"],
+            "role": profile["user"],
+            "task": "Find anomalies",
+            "env": env_name,
+            "policy": "dqn",
+            "seed": st.session_state.get("multi_seed"),
+        }
+    )
+
+
+def _system_action_summary(
+    env_name: str,
+    task_name: str,
+    policy: str,
+    selected_seed: Optional[int],
+    window_row: pd.Series,
+    compare_row: Optional[pd.Series],
+) -> Dict[str, Any]:
+    profile = _scenario_profile(env_name)
+    suspicion = float(window_row["anomaly_score"])
+    change_conf = float(window_row["regime_shift_score"])
+    reward = float(window_row["r_bar"])
+    intervention_flag = bool(window_row["gt_intervention"]) if "gt_intervention" in window_row.index else False
+    if suspicion >= 0.8 or change_conf >= 0.8 or intervention_flag:
+        severity = "High"
+        decision = profile["high_action"]
+    elif suspicion >= 0.5 or change_conf >= 0.5:
+        severity = "Moderate"
+        decision = profile["moderate_action"]
+    else:
+        severity = "Low"
+        decision = profile["monitor_action"]
+
+    if task_name == "Compare policies":
+        recommendation = "Compare the active controller against the strongest alternate controller, then export the comparison brief."
+    elif task_name == "Locate shift":
+        recommendation = "Inspect the windows before and after the focused change point."
+    else:
+        recommendation = "Start with the highest-priority window, then inspect adjacent windows."
+
+    evidence = [
+        "System: {0}".format(_format_env_name(env_name)),
+        "Controller: {0}".format(_format_policy_name(policy)),
+        "Run: {0}".format(selected_seed if selected_seed is not None else "default"),
+        "Window: k={0}, t={1}-{2}".format(int(window_row["k"]), int(window_row["t_start"]), int(window_row["t_end"])),
+        "Risk: {0:.3f}".format(suspicion),
+        "Change: {0:.3f}".format(change_conf),
+        "Outcome: {0:.3f}".format(reward),
+    ]
+    if intervention_flag:
+        evidence.append("Reference intervention overlaps this window.")
+    if compare_row is not None:
+        evidence.append(
+            "Controller gap: group {0}, behavior difference {1:.3f}, outcome gap {2:.3f}.".format(
+                int(compare_row["cluster"]),
+                float(compare_row["js_div"]),
+                float(compare_row["reward_gap"]),
+            )
+        )
+
+    return {
+        "decision": decision,
+        "severity": severity,
+        "owner": profile["owner"],
+        "evidence": evidence,
+        "risk": "{0}: risk {1:.3f}, change {2:.3f}.".format(severity, suspicion, change_conf),
+        "recommendation": recommendation,
+        "action_title": "Recommended next step",
+    }
+
+
+def _minmax_index(values: pd.Series, reverse: bool = False) -> pd.Series:
+    numeric = values.astype(float)
+    low = float(numeric.min())
+    high = float(numeric.max())
+    if high <= low:
+        scaled = pd.Series([50.0] * len(numeric), index=numeric.index)
+    else:
+        scaled = (numeric - low) / (high - low) * 100.0
+    return 100.0 - scaled if reverse else scaled
+
+
+def _operational_focus_frame(filtered_df: pd.DataFrame, selected_k: Optional[int]) -> pd.DataFrame:
+    frame = filtered_df.copy()
+    frame["risk_index"] = _minmax_index(frame["anomaly_score"])
+    frame["change_index"] = _minmax_index(frame["regime_shift_score"])
+    frame["outcome_stress_index"] = _minmax_index(frame["r_bar"], reverse=True)
+    frame["priority_index"] = (
+        0.50 * frame["risk_index"] + 0.35 * frame["change_index"] + 0.15 * frame["outcome_stress_index"]
+    )
+    if "gt_intervention" in frame.columns:
+        frame.loc[frame["gt_intervention"].astype(bool), "priority_index"] += 10.0
+    frame["priority_index"] = frame["priority_index"].clip(lower=0.0, upper=100.0)
+    frame["priority_size"] = frame["priority_index"].clip(lower=8.0) + 8.0
+    frame["window_label"] = frame.apply(_window_label, axis=1)
+    frame["is_selected"] = frame["k"].astype(int).eq(int(selected_k)) if selected_k is not None else False
+
+    def _action(row: pd.Series) -> str:
+        if bool(row.get("gt_intervention", False)) or float(row["priority_index"]) >= 72.0:
+            return "Escalate now"
+        if float(row["priority_index"]) >= 42.0:
+            return "Review next"
+        return "Monitor"
+
+    frame["recommended_action"] = frame.apply(_action, axis=1)
+    return frame
+
+
+def _focused_action_row(focus_df: pd.DataFrame, selected_k: Optional[int]) -> pd.Series:
+    if selected_k is not None:
+        selected = focus_df[focus_df["k"].astype(int) == int(selected_k)]
+        if not selected.empty:
+            return selected.iloc[0]
+    return focus_df.sort_values("priority_index", ascending=False).iloc[0]
+
+
+def _explain_value(value: Any, digits: int = 3) -> str:
+    try:
+        if pd.isna(value):
+            return "n/a"
+        return "{0:.{1}f}".format(float(value), digits)
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _point_explanation_metric(label: str, value: Any) -> Dict[str, str]:
+    return {"What": label, "Value": str(value)}
+
+
+def _set_point_explanation(
+    *,
+    signature: str,
+    title: str,
+    chart: str,
+    summary: str,
+    metrics: List[Dict[str, str]],
+    next_step: str,
+) -> None:
+    if st.session_state.get("_last_point_explanation_signature") == signature and "_point_explanation" in st.session_state:
+        return
+    st.session_state["_last_point_explanation_signature"] = signature
+    st.session_state["_point_explanation"] = {
+        "signature": signature,
+        "title": title,
+        "chart": chart,
+        "summary": summary,
+        "metrics": metrics,
+        "next_step": next_step,
+    }
+
+
+def _render_point_explanation_body(payload: Dict[str, Any]) -> None:
+    st.caption(str(payload.get("chart", "Selected chart point")))
+    st.markdown(str(payload.get("summary", "")))
+    metrics = payload.get("metrics", [])
+    if metrics:
+        st.dataframe(pd.DataFrame(metrics), hide_index=True, use_container_width=True)
+    next_step = str(payload.get("next_step", ""))
+    if next_step:
+        st.info(next_step)
+    if st.button("Close explanation", key="close_point_explanation", use_container_width=True):
+        st.session_state.pop("_point_explanation", None)
+        st.session_state.pop("_last_point_explanation_signature", None)
+        _trigger_rerun()
+
+
+def _render_point_explanation_module() -> None:
+    payload = st.session_state.get("_point_explanation")
+    if not isinstance(payload, dict):
+        return
+    dialog = getattr(st, "dialog", None)
+    if callable(dialog):
+        @dialog(str(payload.get("title", "Point explanation")))
+        def _point_explanation_dialog() -> None:
+            _render_point_explanation_body(payload)
+
+        _point_explanation_dialog()
+        return
+
+    with st.expander(str(payload.get("title", "Point explanation")), expanded=True):
+        _render_point_explanation_body(payload)
+
+
+def _window_explanation_text(policy: str, row: pd.Series, task_name: str) -> str:
+    return "This point represents one time window. The dashboard is checking whether this window looks unusual, whether the system changed around it, and whether the result looks weak enough to review."
+
+
+def _scenario_problem_text(env_name: str, row: pd.Series) -> str:
+    risk = float(row.get("risk_index", row.get("anomaly_score", 0.0)))
+    change = float(row.get("change_index", row.get("regime_shift_score", 0.0)))
+    outcome = float(row.get("outcome_stress_index", 0.0))
+    profile = _scenario_profile(env_name)
+    if env_name == "traffic":
+        base = "In this traffic scenario, the point may mean the signal plan is not matching current road conditions."
+        issue = "It can point to growing congestion, a sudden traffic-pattern change, or a signal timing window that needs operator review."
+    elif env_name == "inventory":
+        base = "In this inventory scenario, the point may mean demand or stock behavior has moved away from normal."
+        issue = "It can point to a stockout risk, demand shock, or a replenishment rule that should be checked."
+    elif env_name == "queue":
+        base = "In this service-queue scenario, the point may mean the line is becoming harder to serve."
+        issue = "It can point to congestion, a service-rate mismatch, or a scheduling choice that needs attention."
+    elif env_name == "cartpole":
+        base = "In this control-safety scenario, the point may mean the controller is becoming less stable."
+        issue = "It can point to a rollout window where the controller should be tested before approval."
+    elif env_name == "lunarlander":
+        base = "In this robotics scenario, the point may mean the lander is entering a less safe descent pattern."
+        issue = "It can point to a landing behavior that should be reviewed before deployment."
+    else:
+        base = "In this scenario, the point may mean the system is behaving differently from normal."
+        issue = profile["problem"]
+
+    reasons: List[str] = []
+    if risk >= 70:
+        reasons.append("it looks unusual")
+    if change >= 70:
+        reasons.append("the behavior appears to be changing")
+    if outcome >= 70:
+        reasons.append("the result looks weak")
+    if not reasons:
+        reasons.append("it is still worth watching under the current filters")
+    return "{0} {1} Main reason: {2}.".format(base, issue, ", ".join(reasons))
+
+
+def _set_window_point_explanation(
+    *,
+    chart: str,
+    env_name: str,
+    policy: str,
+    task_name: str,
+    row: pd.Series,
+) -> None:
+    action = str(row.get("recommended_action", "Review next"))
+    summary = (
+        "**What this point means.** {window} is one reviewed time window.\n\n"
+        "**What it says about this system.** {problem}\n\n"
+        "**Why it was selected.** {generic}"
+    ).format(
+        window=_window_label(row),
+        problem=_scenario_problem_text(env_name, row),
+        generic=_window_explanation_text(policy, row, task_name),
+    )
+    metrics = [
+        _point_explanation_metric("Scenario", _format_env_name(env_name)),
+        _point_explanation_metric("Controller", _format_policy_name(policy)),
+        _point_explanation_metric("Window", "k={0}".format(int(row["k"]))),
+        _point_explanation_metric("Looks unusual", "{0}/100".format(_explain_value(row.get("risk_index"), 1))),
+        _point_explanation_metric("Looks changed", "{0}/100".format(_explain_value(row.get("change_index"), 1))),
+        _point_explanation_metric("Result concern", "{0}/100".format(_explain_value(row.get("outcome_stress_index"), 1))),
+        _point_explanation_metric("Review priority", "{0}/100".format(_explain_value(row.get("priority_index"), 1))),
+        _point_explanation_metric("Suggested action", action),
+    ]
+    _set_point_explanation(
+        signature="window:{0}:{1}:{2}:{3}".format(chart, env_name, policy, int(row["k"])),
+        title="What this point means",
+        chart=chart,
+        summary=summary,
+        metrics=metrics,
+        next_step="Next: check the windows before and after this one. If they show the same pattern, it is probably a real system issue, not just a one-window spike.",
+    )
+
+
+def _set_action_mix_explanation(action: str, focus_df: pd.DataFrame) -> None:
+    count = int(focus_df["recommended_action"].eq(action).sum())
+    total = max(int(len(focus_df)), 1)
+    share = count / total
+    _set_point_explanation(
+        signature="action:{0}:{1}".format(action, total),
+        title="What this point means",
+        chart="Recommended actions",
+        summary=(
+            "**What this point means.** This bar counts how many current windows fall into `{0}`.\n\n"
+            "**What it says about this system.** A large bar means many windows need the same level of attention."
+        ).format(action),
+        metrics=[
+            _point_explanation_metric("Suggested action", action),
+            _point_explanation_metric("Windows", count),
+            _point_explanation_metric("Share", "{0:.1%}".format(share)),
+        ],
+        next_step="Next: use this filter to focus only on the windows with the same suggested action.",
+    )
+
+
+def _set_signal_explanation(signal_key: str, env_name: str, policy: str, row: pd.Series) -> None:
+    signal_map = {
+        "risk": ("Looks unusual", "This bar says whether the selected window looks different from normal behavior in this scenario."),
+        "change": ("Looks changed", "This bar says whether the system seems to have changed around this window."),
+        "outcome": ("Result concern", "This bar says whether the result in this window looks weaker than expected."),
+        "priority": ("Review priority", "This bar combines the warning signs into one review order."),
+    }
+    signal_label, summary = signal_map.get(signal_key, ("Signal", "This is one diagnostic signal for the focused window."))
+    value_map = {
+        "risk": row.get("risk_index"),
+        "change": row.get("change_index"),
+        "outcome": row.get("outcome_stress_index"),
+        "priority": row.get("priority_index"),
+    }
+    _set_point_explanation(
+        signature="signal:{0}:{1}:{2}:{3}".format(env_name, policy, int(row["k"]), signal_key),
+        title="What this point means",
+        chart="Why this window matters",
+        summary="**What this point means.** {0}\n\n**What it says about this system.** {1}".format(
+            summary,
+            _scenario_problem_text(env_name, row),
+        ),
+        metrics=[
+            _point_explanation_metric("Scenario", _format_env_name(env_name)),
+            _point_explanation_metric("Controller", _format_policy_name(policy)),
+            _point_explanation_metric("Window", "k={0}".format(int(row["k"]))),
+            _point_explanation_metric(signal_label, "{0}/100".format(_explain_value(value_map.get(signal_key), 1))),
+        ],
+        next_step="Next: use this bar to understand why the window was placed in the review queue.",
+    )
+
+
+def _set_benchmark_cell_explanation(benchmark_df: pd.DataFrame, env_name: str, policy: str, metric: str, chart: str) -> None:
+    row = benchmark_df[(benchmark_df["env"] == env_name) & (benchmark_df["policy"] == policy)]
+    if row.empty:
+        return
+    active = row.iloc[0]
+    mean_col = "{0}_mean".format(metric)
+    std_col = "{0}_std".format(metric)
+    _set_point_explanation(
+        signature="benchmark:{0}:{1}:{2}:{3}".format(chart, env_name, policy, metric),
+        title="What this point means",
+        chart=chart,
+        summary=(
+            "**What this point means.** This score shows how well `{controller}` worked on past `{scenario}` data.\n\n"
+            "**What it says about this system.** Higher values mean the dashboard found the known warning windows more reliably for this controller."
+        ).format(controller=_format_policy_name(policy), scenario=_format_env_name(env_name)),
+        metrics=[
+            _point_explanation_metric("Scenario", _format_env_name(env_name)),
+            _point_explanation_metric("Controller", _format_policy_name(policy)),
+            _point_explanation_metric("Score type", _metric_label(metric)),
+            _point_explanation_metric("Average score", _explain_value(active.get(mean_col))),
+            _point_explanation_metric("Run-to-run spread", _explain_value(active.get(std_col))),
+        ],
+        next_step="Next: click this score to open that scenario and controller in the detailed window charts.",
+    )
+
+
+def _set_cluster_point_explanation(env_name: str, p1: str, p2: str, cluster_row: pd.Series, chart: str) -> None:
+    diff = float(cluster_row.get("js_div", 0.0))
+    gap = float(cluster_row.get("reward_gap", 0.0))
+    if diff >= 0.45:
+        difference_text = "The two controllers behave very differently in this group."
+    elif diff >= 0.20:
+        difference_text = "The two controllers behave somewhat differently in this group."
+    else:
+        difference_text = "The two controllers behave similarly in this group."
+    if abs(gap) >= 0.20:
+        outcome_text = "The result impact is large enough to check before choosing a controller."
+    else:
+        outcome_text = "The result impact is smaller, so this group is mainly useful for understanding behavior."
+    summary = (
+        "**What this point means.** This group contains windows where `{a}` and `{b}` were compared.\n\n"
+        "**What it says about this system.** {difference} {outcome}"
+    ).format(a=_format_policy_name(p1), b=_format_policy_name(p2), difference=difference_text, outcome=outcome_text)
+    _set_point_explanation(
+        signature="cluster:{0}:{1}:{2}:{3}:{4}".format(chart, env_name, p1, p2, int(cluster_row["cluster"])),
+        title="What this point means",
+        chart=chart,
+        summary=summary,
+        metrics=[
+            _point_explanation_metric("Scenario", _format_env_name(env_name)),
+            _point_explanation_metric("Controller A", _format_policy_name(p1)),
+            _point_explanation_metric("Controller B", _format_policy_name(p2)),
+            _point_explanation_metric("Group", int(cluster_row["cluster"])),
+            _point_explanation_metric("How different", _explain_value(cluster_row.get("js_div"))),
+            _point_explanation_metric("Result impact", _explain_value(cluster_row.get("reward_gap"))),
+            _point_explanation_metric("Windows", int(cluster_row.get("n_total", 0))),
+        ],
+        next_step="Next: use this group to decide whether the alternate controller should be reviewed before deployment.",
+    )
+
+
+def _build_risk_change_matrix(
+    focus_df: pd.DataFrame,
+    selected_k: Optional[int],
+    anomaly_threshold: float,
+    shift_threshold: float,
+) -> go.Figure:
+    fig = px.scatter(
+        focus_df,
+        x="regime_shift_score",
+        y="anomaly_score",
+        color="recommended_action",
+        size="priority_size",
+        hover_name="window_label",
+        custom_data=["k", "priority_index", "r_bar", "recommended_action"],
+        color_discrete_map=ACTION_COLOR_MAP,
+        title="Which windows need attention?",
+        labels={
+            "regime_shift_score": "Looks changed",
+            "anomaly_score": "Looks unusual",
+            "recommended_action": "Suggested action",
+            "priority_size": "Review priority",
+        },
+    )
+    fig.update_traces(
+        marker={"opacity": 0.86, "line": {"width": 0.7, "color": "#1f2a33"}},
+        hovertemplate=(
+            "%{hovertext}<br>unusual=%{y:.3f}<br>changed=%{x:.3f}<br>"
+            "review priority=%{customdata[1]:.1f}<br>result=%{customdata[2]:.3f}"
+            "<br>suggestion=%{customdata[3]}<extra></extra>"
+        ),
+    )
+    fig.add_hline(y=float(anomaly_threshold), line_dash="dot", line_color="#b84a39", opacity=0.70)
+    fig.add_vline(x=float(shift_threshold), line_dash="dot", line_color="#355c7d", opacity=0.70)
+    if selected_k is not None:
+        selected = focus_df[focus_df["k"].astype(int) == int(selected_k)]
+        if not selected.empty:
+            fig.add_trace(
+                go.Scatter(
+                    x=selected["regime_shift_score"],
+                    y=selected["anomaly_score"],
+                    mode="markers",
+                    marker={
+                        "symbol": "circle-open",
+                        "size": 28,
+                        "line": {"width": 3, "color": "#111111"},
+                    },
+                    name="Selected window",
+                    customdata=selected[["k", "priority_index", "r_bar", "recommended_action"]].to_numpy(),
+                    hovertemplate="selected k=%{customdata[0]}<br>priority=%{customdata[1]:.1f}<extra></extra>",
+                )
+            )
+    fig.update_layout(template="plotly_white", height=380, legend_title="Suggested action")
+    return fig
+
+
+def _build_decision_timeline_figure(focus_df: pd.DataFrame, selected_k: Optional[int]) -> go.Figure:
+    long_df = focus_df.melt(
+        id_vars=["k", "window_label", "recommended_action"],
+        value_vars=["risk_index", "change_index", "priority_index"],
+        var_name="signal",
+        value_name="score",
+    )
+    long_df["signal"] = long_df["signal"].map(
+        {
+            "risk_index": "Looks unusual",
+            "change_index": "Looks changed",
+            "priority_index": "Review priority",
+        }
+    )
+    fig = px.line(
+        long_df.sort_values("k"),
+        x="k",
+        y="score",
+        color="signal",
+        markers=True,
+        custom_data=["k", "window_label", "recommended_action"],
+        title="How the issue changes over time",
+        labels={"k": "Window", "score": "Score (0-100)", "signal": "What changed"},
+        color_discrete_sequence=["#b84a39", "#355c7d", "#f0a202"],
+    )
+    fig.update_traces(
+        hovertemplate="%{customdata[1]}<br>%{legendgroup}=%{y:.1f}<br>suggestion=%{customdata[2]}<extra></extra>"
+    )
+    if "gt_intervention" in focus_df.columns:
+        interventions = focus_df[focus_df["gt_intervention"].astype(bool)]
+        if not interventions.empty:
+            fig.add_trace(
+                go.Scatter(
+                    x=interventions["k"],
+                    y=[104.0] * len(interventions),
+                    mode="markers",
+                    marker={"symbol": "triangle-down", "size": 12, "color": "#111111"},
+                    name="Known issue",
+                    customdata=interventions[["k", "window_label", "recommended_action"]].to_numpy(),
+                    hovertemplate="%{customdata[1]}<br>known issue<extra></extra>",
+                )
+            )
+    if selected_k is not None:
+        fig.add_vline(x=float(selected_k), line_dash="dash", line_color="#111111", opacity=0.75)
+    fig.update_layout(template="plotly_white", height=280, yaxis_range=[0, 110], legend={"orientation": "h", "y": 1.16})
+    return fig
+
+
+def _build_priority_queue_figure(focus_df: pd.DataFrame, top_k: int) -> go.Figure:
+    view = focus_df.sort_values("priority_index", ascending=False).head(top_k).copy()
+    view = view.sort_values("priority_index", ascending=True)
+    fig = px.bar(
+        view,
+        x="priority_index",
+        y="window_label",
+        color="recommended_action",
+        orientation="h",
+        custom_data=["k", "anomaly_score", "regime_shift_score", "r_bar", "recommended_action"],
+        color_discrete_map=ACTION_COLOR_MAP,
+        title="What to check first",
+        labels={"priority_index": "Review priority (0-100)", "window_label": "", "recommended_action": "Suggested action"},
+    )
+    fig.update_traces(
+        hovertemplate=(
+            "%{y}<br>review priority=%{x:.1f}<br>unusual=%{customdata[1]:.3f}"
+            "<br>changed=%{customdata[2]:.3f}<br>result=%{customdata[3]:.3f}"
+            "<br>suggestion=%{customdata[4]}<extra></extra>"
+        )
+    )
+    fig.update_layout(template="plotly_white", height=380, xaxis_range=[0, 105], legend_title="Suggested action")
+    return fig
+
+
+def _filter_focus_by_action(focus_df: pd.DataFrame, action_filter: str) -> pd.DataFrame:
+    if action_filter == "All actions" or action_filter not in ACTION_COLOR_MAP:
+        return focus_df
+    action_view = focus_df[focus_df["recommended_action"].eq(action_filter)].copy()
+    return action_view if not action_view.empty else focus_df
+
+
+def _build_action_mix_figure(focus_df: pd.DataFrame) -> go.Figure:
+    counts = focus_df["recommended_action"].value_counts().rename_axis("recommended_action").reset_index(name="count")
+    counts = counts.sort_values("count", ascending=True)
+    fig = px.bar(
+        counts,
+        x="count",
+        y="recommended_action",
+        orientation="h",
+        title="Recommended actions",
+        color="recommended_action",
+        color_discrete_map=ACTION_COLOR_MAP,
+        custom_data=["recommended_action"],
+        labels={"count": "Windows", "recommended_action": ""},
+    )
+    fig.update_traces(
+        hovertemplate="%{customdata[0]}<br>windows=%{x}<extra></extra>",
+    )
+    fig.update_layout(template="plotly_white", height=175, legend_title="", showlegend=False, margin={"t": 48, "b": 18})
+    return fig
+
+
+def _build_benchmark_heatmap(benchmark_df: pd.DataFrame, metric: str) -> go.Figure:
+    if benchmark_df.empty:
+        return go.Figure()
+    frame = benchmark_df.copy()
+    frame["system"] = frame["env"].map(_format_env_name)
+    frame["controller"] = frame["policy"].map(_format_policy_name)
+    pivot = frame.pivot_table(index="system", columns="controller", values="{0}_mean".format(metric), aggfunc="mean")
+    customdata: List[List[List[str]]] = []
+    for system_label in pivot.index.tolist():
+        env_key = _env_from_display(system_label) or str(system_label)
+        row: List[List[str]] = []
+        for controller_label in pivot.columns.tolist():
+            policy_key = _policy_from_display(str(controller_label)) or str(controller_label)
+            row.append([env_key, policy_key, metric])
+        customdata.append(row)
+    fig = go.Figure(
+        go.Heatmap(
+            z=pivot.to_numpy(),
+            x=pivot.columns.tolist(),
+            y=pivot.index.tolist(),
+            customdata=customdata,
+            colorscale="Tealgrn",
+            text=[[("{0:.3f}".format(value) if pd.notna(value) else "") for value in row] for row in pivot.to_numpy()],
+            texttemplate="%{text}",
+            hovertemplate="scenario=%{y}<br>controller=%{x}<br>score=%{z:.3f}<extra></extra>",
+            colorbar={"title": _metric_label(metric)},
+        )
+    )
+    fig.update_layout(
+        template="plotly_white",
+        title="Which setup works best?",
+        xaxis_title="Controller",
+        yaxis_title="Scenario",
+        height=330,
+    )
+    return fig
+
+
+def _build_env_policy_metric_figure(benchmark_df: pd.DataFrame, env_name: str) -> go.Figure:
+    if benchmark_df.empty:
+        return go.Figure()
+    frame = benchmark_df[benchmark_df["env"] == env_name].copy()
+    if frame.empty:
+        return go.Figure()
+    frame["controller"] = frame["policy"].map(_format_policy_name)
+    long_df = frame.melt(
+        id_vars=["policy", "controller"],
+        value_vars=["anomaly_auc_mean", "shift_auc_mean", "reward_jump_auc_mean"],
+        var_name="metric_key",
+        value_name="score",
+    )
+    metric_map = {
+        "anomaly_auc_mean": "Find unusual windows",
+        "shift_auc_mean": "Find changes",
+        "reward_jump_auc_mean": "Find result drops",
+    }
+    long_df["metric"] = long_df["metric_key"].map(metric_map)
+    long_df["metric_state"] = long_df["metric_key"].str.replace("_mean", "", regex=False)
+    fig = px.bar(
+        long_df,
+        x="controller",
+        y="score",
+        color="metric",
+        barmode="group",
+        custom_data=["policy", "metric_state"],
+        title="{0}: controller checkup".format(_format_env_name(env_name)),
+        labels={"controller": "Controller", "score": "Score", "metric": "What it finds"},
+        color_discrete_sequence=["#b84a39", "#355c7d", "#f0a202"],
+    )
+    fig.update_traces(hovertemplate="%{x}<br>%{legendgroup}=%{y:.3f}<extra></extra>")
+    fig.update_layout(template="plotly_white", height=330, legend_title="")
+    return fig
+
+
+def _build_feature_signal_figure(focus_df: pd.DataFrame, selected_k: Optional[int]) -> go.Figure:
+    active = _focused_action_row(focus_df, selected_k)
+    metrics = pd.DataFrame(
+        {
+            "signal": ["Unusual", "Changed", "Poor result", "Priority"],
+            "signal_key": ["risk", "change", "outcome", "priority"],
+            "score": [
+                float(active["risk_index"]),
+                float(active["change_index"]),
+                float(active["outcome_stress_index"]),
+                float(active["priority_index"]),
+            ],
+        }
+    )
+    fig = px.bar(
+        metrics,
+        x="signal",
+        y="score",
+        color="signal",
+        custom_data=["signal_key"],
+        title="Why this window matters",
+        labels={"signal": "", "score": "0-100"},
+        color_discrete_sequence=["#b84a39", "#355c7d", "#6c8ebf", "#f0a202"],
+    )
+    fig.update_traces(hovertemplate="%{x}<br>score=%{y:.1f}<extra></extra>")
+    fig.update_layout(template="plotly_white", height=205, showlegend=False, yaxis_range=[0, 105], margin={"t": 48, "b": 24})
+    return fig
+
+
+def _render_visual_decision_cockpit(
+    filtered_df: pd.DataFrame,
+    selected_k: Optional[int],
+    env_name: str,
+    policy: str,
+    task_name: str,
+    decision: Dict[str, Any],
+    readiness: Dict[str, Any],
+    anomaly_threshold: float,
+    shift_threshold: float,
+    top_k_windows: int,
+    action_filter: str,
+) -> Optional[int]:
+    focus_df = _operational_focus_frame(filtered_df, selected_k)
+    action_mix_df = focus_df.copy()
+    focus_df = _filter_focus_by_action(focus_df, action_filter)
+    active_row = _focused_action_row(focus_df, selected_k)
+    st.markdown('<div class="section-chip">Issue Review</div>', unsafe_allow_html=True)
+    st.subheader("Review the current issue")
+    st.markdown(
+        """
+        <div class="decision-strip">
+            <h3>Suggested action: {action}</h3>
+            <p>{decision}</p>
+        </div>
+        """.format(action=str(active_row["recommended_action"]), decision=decision["decision"]),
+        unsafe_allow_html=True,
+    )
+    cockpit_cols = st.columns(4)
+    cockpit_cols[0].metric("Selected window", _window_label(active_row))
+    cockpit_cols[1].metric("Review priority", "{0:.1f}/100".format(float(active_row["priority_index"])))
+    cockpit_cols[2].metric("Urgency", decision["severity"])
+    cockpit_cols[3].metric("Evidence", readiness["level"], "{0}/{1} checks".format(readiness["score"], readiness["total"]))
+
+    picked_k: Optional[int] = None
+    chart_cols = st.columns([1.25, 1.05, 0.9])
+    with chart_cols[0]:
+        matrix_selection = _plotly_chart_with_optional_selection(
+            _build_risk_change_matrix(
+                focus_df=focus_df,
+                selected_k=selected_k,
+                anomaly_threshold=anomaly_threshold,
+                shift_threshold=shift_threshold,
+            ),
+            key="cockpit_risk_change_matrix",
+            use_container_width=True,
+        )
+        picked_k = _selected_window(matrix_selection)
+        if picked_k is not None and picked_k in focus_df["k"].astype(int).tolist():
+            point_row = focus_df[focus_df["k"].astype(int) == int(picked_k)].iloc[0]
+            _set_window_point_explanation(
+                chart="Which windows need attention?",
+                env_name=env_name,
+                policy=policy,
+                task_name=task_name,
+                row=point_row,
+            )
+    with chart_cols[1]:
+        queue_selection = _plotly_chart_with_optional_selection(
+            _build_priority_queue_figure(focus_df, top_k=min(top_k_windows, len(focus_df))),
+            key="cockpit_priority_queue",
+            use_container_width=True,
+        )
+        queue_k = _selected_window(queue_selection)
+        if queue_k is not None:
+            picked_k = queue_k
+            if queue_k in focus_df["k"].astype(int).tolist():
+                point_row = focus_df[focus_df["k"].astype(int) == int(queue_k)].iloc[0]
+                _set_window_point_explanation(
+                    chart="What to check first",
+                    env_name=env_name,
+                    policy=policy,
+                    task_name=task_name,
+                    row=point_row,
+                )
+    with chart_cols[2]:
+        action_selection = _plotly_chart_with_optional_selection(
+            _build_action_mix_figure(action_mix_df),
+            key="cockpit_action_mix",
+            use_container_width=True,
+        )
+        selected_action = None
+        action_custom = _selected_customdata(action_selection)
+        if action_custom:
+            selected_action = str(action_custom[0])
+        if selected_action is None:
+            selected_action = _selected_label(action_selection)
+        if selected_action in ACTION_COLOR_MAP and selected_action != st.session_state.get("multi_action_filter"):
+            _set_action_mix_explanation(selected_action, action_mix_df)
+            _queue_multi_dashboard_update(multi_action_filter=selected_action)
+        elif selected_action in ACTION_COLOR_MAP:
+            _set_action_mix_explanation(selected_action, action_mix_df)
+        signal_selection = _plotly_chart_with_optional_selection(
+            _build_feature_signal_figure(focus_df, selected_k),
+            key="cockpit_feature_signal",
+            use_container_width=True,
+        )
+        signal_custom = _selected_customdata(signal_selection)
+        if signal_custom:
+            signal_key = str(signal_custom[0])
+            signal_row = _focused_action_row(focus_df, selected_k)
+            _set_signal_explanation(signal_key, env_name, policy, signal_row)
+            updates: Dict[str, Any] = {}
+            if signal_key == "risk":
+                updates = {"multi_task": "Find anomalies", "multi_color_by": "anomaly_score"}
+            elif signal_key == "change":
+                updates = {"multi_task": "Locate shift", "multi_color_by": "regime_shift_score"}
+            elif signal_key == "outcome":
+                updates = {"multi_color_by": "r_bar"}
+            elif signal_key == "priority":
+                updates = {"multi_color_by": "anomaly_score"}
+            if updates and any(st.session_state.get(key) != value for key, value in updates.items()):
+                _queue_multi_dashboard_update(**updates)
+
+    timeline_selection = _plotly_chart_with_optional_selection(
+        _build_decision_timeline_figure(focus_df, selected_k=selected_k),
+        key="cockpit_decision_timeline",
+        use_container_width=True,
+    )
+    timeline_k = _selected_window(timeline_selection)
+    if timeline_k is not None:
+        picked_k = timeline_k
+        if timeline_k in focus_df["k"].astype(int).tolist():
+            point_row = focus_df[focus_df["k"].astype(int) == int(timeline_k)].iloc[0]
+            _set_window_point_explanation(
+                chart="How the issue changes over time",
+                env_name=env_name,
+                policy=policy,
+                task_name=task_name,
+                row=point_row,
+            )
+
+    if picked_k is not None and picked_k in focus_df["k"].astype(int).tolist():
+        return int(picked_k)
+    return None
+
+
+def _render_multi_system_dashboard() -> None:
+    _apply_pending_multi_dashboard_update()
+    st.session_state.setdefault("multi_env", "traffic")
+    st.session_state.setdefault("multi_policy", "dqn")
+    st.session_state.setdefault("multi_task", "Find anomalies")
+    st.session_state.setdefault("multi_color_by", "anomaly_score")
+    st.session_state.setdefault("multi_action_filter", "All actions")
+    st.session_state.setdefault("selected_k", None)
+    st.session_state.setdefault("selected_cluster", None)
+
     st.markdown(
         """
     <div class="hero-shell">
-        <div class="hero-kicker">User Workspace</div>
-        <div class="hero-title">Traffic Operations Review Studio</div>
-        <p class="hero-copy">
-            This workspace is built for live traffic operations. It helps corridor analysts isolate suspicious windows,
-            confirm when the signal system changed regime, compare alternate signal strategies, and leave with a review memo
-            rather than a pile of charts. `RLVA` remains the engine, but the product is framed for a concrete operations user.
-        </p>
+        <div class="hero-kicker">5-System User Dashboard</div>
+        <div class="hero-title">Decision System Review Studio</div>
     </div>
     """,
         unsafe_allow_html=True,
     )
 
-    st.markdown("**Who this is for.** Traffic operations analysts and supervisors reviewing corridor behavior and signal-strategy safety.")
-    st.markdown("**What the user wants.** Triage a suspicious corridor interval, confirm whether the system changed, compare alternate signal plans, and leave with a handoff-ready memo.")
-    st.markdown("**How the workspace behaves.** One focused traffic case drives the ranked evidence, charts, strategy comparison, decision summary, notebook, task log, and exports.")
-    st.caption("The `traffic` environment is the primary product scenario. The other systems remain available as transfer and robustness evidence for the course demo.")
-
-    quick_cols = st.columns(4)
-    quick_cols[0].button("Start incident triage", use_container_width=True, on_click=_apply_demo_preset, args=("Traffic incident",))
-    quick_cols[1].button("Start change review", use_container_width=True, on_click=_apply_demo_preset, args=("Traffic shift",))
-    quick_cols[2].button("Start strategy comparison", use_container_width=True, on_click=_apply_demo_preset, args=("Traffic strategy comparison",))
-    if quick_cols[3].button("Reset workspace", use_container_width=True):
-        _sync_demo_state(default_env="traffic", default_policy="dqn")
-        st.session_state["demo_env"] = "traffic"
-        st.session_state["demo_policy"] = "dqn"
-        st.session_state["demo_seed"] = 23
-        st.session_state["demo_task"] = "Find anomalies"
-        st.session_state["demo_role"] = PRIMARY_ANALYST_ROLE
-        st.session_state["demo_color_by"] = "anomaly_score"
-        st.session_state["selected_k"] = None
-        st.session_state["selected_cluster"] = None
-        _reset_task_session(
-            {
-                "workflow": st.session_state.get("demo_workflow", ""),
-                "role": PRIMARY_ANALYST_ROLE,
-                "task": "Find anomalies",
-                "env": "traffic",
-                "policy": "dqn",
-                "seed": 23,
-            }
+    system_cols = st.columns(len(ENVIRONMENTS))
+    for idx, env_option in enumerate(ENVIRONMENTS):
+        profile = _scenario_profile(env_option)
+        button_type = "primary" if st.session_state.get("multi_env") == env_option else "secondary"
+        system_cols[idx].button(
+            profile["short_label"],
+            key="system_pick_{0}".format(env_option),
+            type=button_type,
+            use_container_width=True,
+            on_click=_apply_system_preset,
+            args=(env_option,),
         )
-        _trigger_rerun()
 
-    workflow_cols = st.columns([1.35, 3, 1.2])
-    with workflow_cols[0]:
-        workflow_name = st.selectbox("Workflow", options=list(USER_WORKFLOW_COPY.keys()), key="demo_workflow")
-    selected_workflow = USER_WORKFLOW_COPY[workflow_name]
-    with workflow_cols[1]:
-        st.info("**Workflow summary.** {0}".format(selected_workflow["summary"]))
-    if workflow_cols[2].button("Start workflow", use_container_width=True):
-        st.session_state["demo_role"] = selected_workflow["role"]
-        _apply_demo_preset(selected_workflow["preset"])
-        _trigger_rerun()
-
-    role_cols = st.columns([1.2, 3])
-    role_name = st.session_state.get("demo_role", selected_workflow["role"])
-    if role_name not in USER_ROLE_COPY:
-        role_name = selected_workflow["role"]
-        st.session_state["demo_role"] = role_name
-    with role_cols[0]:
-        role_name = st.selectbox("Primary user", options=list(USER_ROLE_COPY.keys()), key="demo_role")
-    with role_cols[1]:
-        st.info("**Primary user need.** {0}".format(USER_ROLE_COPY[role_name]))
-
-    control_cols = st.columns([1.25, 1.15, 1.0, 1.0, 1.0, 1.0])
+    control_cols = st.columns([1.25, 1.1, 0.9, 1.25, 1.1, 1.1])
     with control_cols[0]:
-        task_options = ["Find anomalies", "Locate shift", "Compare policies"]
-        if st.session_state.get("demo_task") not in task_options:
-            st.session_state["demo_task"] = ROLE_DEFAULTS[role_name]["task"]
-        task_name = st.selectbox("Decision goal", options=task_options, key="demo_task", format_func=_user_task_label)
+        env_name = st.selectbox(
+            "Scenario",
+            options=ENVIRONMENTS,
+            key="multi_env",
+            format_func=lambda name: _scenario_profile(name)["short_label"],
+        )
+    profile = _scenario_profile(env_name)
     with control_cols[1]:
-        env_name = st.selectbox("System", options=ENVIRONMENTS, key="demo_env", format_func=lambda name: ENV_LABELS.get(name, name))
-    with control_cols[2]:
-        policy = st.selectbox("Controller", options=BENCHMARK_POLICIES, key="demo_policy", format_func=_format_policy_name)
+        if st.session_state.get("multi_policy") not in BENCHMARK_POLICIES:
+            st.session_state["multi_policy"] = "dqn"
+        policy = st.selectbox("Controller", options=BENCHMARK_POLICIES, key="multi_policy", format_func=_format_policy_name)
     available_seeds = cached_available_seeds(env_name, policy)
-    if available_seeds:
-        if st.session_state.get("demo_seed") not in available_seeds:
-            st.session_state["demo_seed"] = int(available_seeds[0])
-    else:
-        st.session_state["demo_seed"] = None
+    if available_seeds and st.session_state.get("multi_seed") not in available_seeds:
+        st.session_state["multi_seed"] = 23 if 23 in available_seeds else int(available_seeds[0])
+    with control_cols[2]:
+        selected_seed = st.selectbox("Data run", options=available_seeds, key="multi_seed") if available_seeds else None
     with control_cols[3]:
-        selected_seed = st.selectbox("Run", options=available_seeds, key="demo_seed") if available_seeds else None
+        task_name = st.selectbox(
+            "Goal",
+            options=["Find anomalies", "Locate shift", "Compare policies"],
+            key="multi_task",
+            format_func=_user_task_label,
+        )
     with control_cols[4]:
-        color_by = st.selectbox(
-            "Map emphasis",
-            options=["anomaly_score", "regime_shift_score", "switch_rate", "r_bar", "H_bar"],
-            key="demo_color_by",
-            format_func=_color_label,
+        focus_preset = st.selectbox(
+            "View",
+            options=["Balanced", "Highest risk", "Change", "Task only"],
+            key="multi_focus_preset",
+            format_func=_focus_label,
         )
     with control_cols[5]:
-        focus_preset = st.selectbox(
-            "Quick focus",
-            options=["Balanced view", "Highest risk", "System change", "Current task only"],
-            key="demo_focus_preset",
+        score_metric = st.selectbox(
+            "Score view",
+            options=["anomaly_auc", "shift_auc", "reward_jump_auc"],
+            key="multi_score_metric",
+            format_func=_metric_label,
         )
-
-    case_signature = {
-        "workflow": workflow_name,
-        "role": role_name,
-        "task": task_name,
-        "env": env_name,
-        "policy": policy,
-        "seed": selected_seed,
-    }
-    _ensure_task_session(case_signature)
-
-    st.info(
-        "**Active mission.** {0} **Current scene.** `{1}` / `{2}` / run `{3}`.".format(
-            DEMO_TASK_COPY[task_name],
-            _format_env_name(env_name),
-            _format_policy_name(policy),
-            selected_seed if selected_seed is not None else "default",
-        )
-    )
 
     summary_df = cached_summary(env_name, policy, seed=selected_seed).sort_values("k").reset_index(drop=True)
     if summary_df.empty:
-        st.warning("No time-segment summaries are available for the current selection.")
+        st.warning("No windows are available for this system/controller/run.")
         return
 
     k_min, k_max = int(summary_df["k"].min()), int(summary_df["k"].max())
-    default_color = "regime_shift_score" if task_name == "Locate shift" else color_by
-    if default_color != color_by:
-        st.session_state["demo_color_by"] = default_color
-        color_by = default_color
-    anomaly_default = float(summary_df["anomaly_score"].quantile(0.50 if task_name == "Find anomalies" else 0.25))
-    shift_default = float(summary_df["regime_shift_score"].quantile(0.50 if task_name == "Locate shift" else 0.25))
+    anomaly_default = float(summary_df["anomaly_score"].quantile(0.45))
+    shift_default = float(summary_df["regime_shift_score"].quantile(0.45))
     if focus_preset == "Highest risk":
-        anomaly_default = float(summary_df["anomaly_score"].quantile(0.75))
-        shift_default = float(summary_df["regime_shift_score"].quantile(0.60))
-    elif focus_preset == "System change":
+        anomaly_default = float(summary_df["anomaly_score"].quantile(0.72))
+        shift_default = float(summary_df["regime_shift_score"].quantile(0.35))
+    elif focus_preset == "Change":
         anomaly_default = float(summary_df["anomaly_score"].quantile(0.25))
-        shift_default = float(summary_df["regime_shift_score"].quantile(0.75))
-    elif focus_preset == "Current task only":
+        shift_default = float(summary_df["regime_shift_score"].quantile(0.72))
+    elif focus_preset == "Task only":
         if task_name == "Locate shift":
             anomaly_default = float(summary_df["anomaly_score"].quantile(0.20))
             shift_default = float(summary_df["regime_shift_score"].quantile(0.75))
@@ -2354,1712 +3247,381 @@ def _render_demo_panel() -> None:
             anomaly_default = float(summary_df["anomaly_score"].quantile(0.75))
             shift_default = float(summary_df["regime_shift_score"].quantile(0.20))
 
-    with st.expander("Focus filters", expanded=True):
-        filter_cols = st.columns([1.35, 1.0, 1.0, 1.1])
-        with filter_cols[0]:
-            k_range = st.slider("Time segment range", min_value=k_min, max_value=k_max, value=(k_min, k_max))
-        with filter_cols[1]:
-            top_k_windows = st.slider("Top time segments", min_value=3, max_value=min(20, len(summary_df)), value=min(8, len(summary_df)))
-        with filter_cols[2]:
-            focus_mode = st.selectbox(
-                "Window scope",
-                options=["All filtered windows", "Only anomalous windows", "Only shift windows", "Only intervention windows"],
-                format_func=_mode_subset_label,
-            )
-        with filter_cols[3]:
-            if task_name == "Compare policies":
-                st.info("Comparison uses the same focused windows, then switches to behavior-group evidence.")
-            elif task_name == "Locate shift":
-                st.info("Change review emphasizes windows with stronger change confidence.")
-            else:
-                st.info("Risk review emphasizes windows with stronger unusual-behavior signal.")
-        threshold_cols = st.columns(2)
-        with threshold_cols[0]:
-            anomaly_threshold = st.slider(
-                "Risk flag threshold",
-                min_value=float(summary_df["anomaly_score"].min()),
-                max_value=float(summary_df["anomaly_score"].max()),
-                value=anomaly_default,
-            )
-        with threshold_cols[1]:
-            shift_threshold = st.slider(
-                "Change confidence threshold",
-                min_value=float(summary_df["regime_shift_score"].min()),
-                max_value=float(summary_df["regime_shift_score"].max()),
-                value=shift_default,
-            )
+    filter_cols = st.columns([1.25, 0.9, 1, 1, 1])
+    with filter_cols[0]:
+        k_range = st.slider(
+            "Windows",
+            min_value=k_min,
+            max_value=k_max,
+            value=(k_min, k_max),
+            key="range_{0}_{1}_{2}".format(env_name, policy, selected_seed),
+        )
+    with filter_cols[1]:
+        top_k_windows = st.slider("Top items", min_value=3, max_value=min(20, len(summary_df)), value=min(8, len(summary_df)))
+    with filter_cols[2]:
+        action_filter = st.selectbox(
+            "Suggested action",
+            options=["All actions"] + list(ACTION_COLOR_MAP.keys()),
+            key="multi_action_filter",
+        )
+    with filter_cols[3]:
+        anomaly_threshold = st.slider(
+            "Unusual threshold",
+            min_value=float(summary_df["anomaly_score"].min()),
+            max_value=float(summary_df["anomaly_score"].max()),
+            value=anomaly_default,
+            key="risk_{0}_{1}_{2}_{3}".format(env_name, policy, selected_seed, focus_preset),
+        )
+    with filter_cols[4]:
+        shift_threshold = st.slider(
+            "Change threshold",
+            min_value=float(summary_df["regime_shift_score"].min()),
+            max_value=float(summary_df["regime_shift_score"].max()),
+            value=shift_default,
+            key="change_{0}_{1}_{2}_{3}".format(env_name, policy, selected_seed, focus_preset),
+        )
 
     filtered_df = summary_df[summary_df["k"].between(k_range[0], k_range[1])].copy()
     filtered_df = filtered_df[
         filtered_df["anomaly_score"].ge(float(anomaly_threshold)) | filtered_df["regime_shift_score"].ge(float(shift_threshold))
     ].copy()
-    if focus_mode == "Only anomalous windows":
-        filtered_df = filtered_df[filtered_df["is_anomaly"]]
-    elif focus_mode == "Only shift windows":
-        filtered_df = filtered_df[filtered_df["is_regime_shift"]]
-    elif focus_mode == "Only intervention windows" and "gt_intervention" in filtered_df.columns:
-        filtered_df = filtered_df[filtered_df["gt_intervention"]]
-
     if filtered_df.empty:
-        st.warning("No time segments remain after the current filters.")
+        st.warning("No windows match the current thresholds.")
         return
 
     top_window = _focus_selected_window(filtered_df, task_name)
     if st.session_state.get("selected_k") not in filtered_df["k"].astype(int).tolist():
         st.session_state["selected_k"] = int(top_window["k"])
-    selected_window_row = filtered_df[filtered_df["k"] == int(st.session_state["selected_k"])]
-    if selected_window_row.empty:
-        selected_window_row = filtered_df.iloc[[0]]
-        st.session_state["selected_k"] = int(selected_window_row.iloc[0]["k"])
-    selected_window = selected_window_row.iloc[0]
-
-    st.session_state.setdefault("case_note_title", "")
-    st.session_state.setdefault("case_note_body", "")
-    st.session_state.setdefault("case_note_status", "Needs review")
-    default_case_owner = PRIMARY_SUPERVISOR_OWNER if role_name == PRIMARY_SUPERVISOR_ROLE else PRIMARY_OPERATIONS_OWNER
-    if st.session_state.get("case_note_owner") in {None, "", "model validation team", "operations review team"}:
-        st.session_state["case_note_owner"] = default_case_owner
-    st.session_state.setdefault("case_note_tags", [])
-
-    metrics = _summary_metrics(filtered_df)
-    headline_cols = st.columns(5)
-    headline_cols[0].metric("Visible time segments", int(metrics["windows"]))
-    headline_cols[1].metric("Average outcome", "{0:.3f}".format(metrics["reward_mean"]))
-    headline_cols[2].metric("Peak risk flag", "{0:.3f}".format(float(filtered_df["anomaly_score"].max())))
-    headline_cols[3].metric("Peak change confidence", "{0:.3f}".format(float(filtered_df["regime_shift_score"].max())))
-    headline_cols[4].metric("Reference overlap", "{0:.1%}".format(float(filtered_df["gt_intervention"].mean()) if "gt_intervention" in filtered_df.columns else 0.0))
-    task_cols = st.columns(4)
-    task_cols[0].metric("Task timer", "{0:.1f}s".format(max(0.0, float(time.time() - float(st.session_state.get("task_session_started_at", time.time()))))))
-    task_cols[1].metric("Focus changes", int(st.session_state.get("task_focus_changes", 0)))
-    task_cols[2].metric("Filter changes", int(st.session_state.get("task_filter_changes", 0)))
-    task_cols[3].metric("Comparison changes", int(st.session_state.get("task_comparison_changes", 0)))
-
-    st.caption(
-        "Active filters: windows `{0}-{1}` | scope `{2}` | risk flag `>= {3:.3f}` | change confidence `>= {4:.3f}` | emphasis `{5}`.".format(
-            k_range[0],
-            k_range[1],
-            _mode_subset_label(focus_mode),
-            float(anomaly_threshold),
-            float(shift_threshold),
-            _color_label(color_by),
-        )
-    )
-
-    diagnosis = _diagnostic_summary(task_name, env_name, policy, selected_window)
-    problem_statement = _user_problem_statement(role_name, task_name, env_name, policy)
-    scenario_copy = ROLE_SCENARIO_COPY.get(role_name, "Concrete review scenario for the active user.")
-    st.caption("Mission -> Evidence -> Action -> Notebook -> Export -> Task Performance")
-    framing_cols = st.columns([1.4, 1.4, 1.6])
-    with framing_cols[0]:
-        st.markdown("**User problem**")
-        st.write(problem_statement)
-    with framing_cols[1]:
-        st.markdown("**Execution scenario**")
-        st.write(scenario_copy)
-    with framing_cols[2]:
-        st.markdown("**Success condition**")
-        st.write(TASK_SUCCESS_COPY.get(task_name, TASK_SUCCESS_COPY["Find anomalies"]))
-    summary_cols = st.columns([1.2, 1.2, 1.6])
-    with summary_cols[0]:
-        st.markdown("**What happened**")
-        st.write(diagnosis["happened"])
-    with summary_cols[1]:
-        st.markdown("**Why it matters**")
-        st.write(diagnosis["why"])
-    with summary_cols[2]:
-        st.markdown("**What to do next**")
-        for step in diagnosis["next_steps"]:
-            st.markdown("- {0}".format(step))
+    selected_window = filtered_df[filtered_df["k"] == int(st.session_state["selected_k"])].iloc[0]
+    action_focus_df = _filter_focus_by_action(_operational_focus_frame(filtered_df, int(selected_window["k"])), action_filter)
+    if action_filter != "All actions" and int(selected_window["k"]) not in action_focus_df["k"].astype(int).tolist():
+        action_top = action_focus_df.sort_values("priority_index", ascending=False).iloc[0]
+        st.session_state["selected_k"] = int(action_top["k"])
+        selected_window = filtered_df[filtered_df["k"] == int(st.session_state["selected_k"])].iloc[0]
 
     default_p1, default_p2 = _recommended_compare_pair(task_name, policy)
-    p1 = st.session_state.get("cmp_p1", default_p1)
-    if p1 not in BENCHMARK_POLICIES:
-        p1 = default_p1
-    p2_candidates = [name for name in BENCHMARK_POLICIES if name != p1]
-    p2_default = default_p2 if default_p2 in p2_candidates else p2_candidates[0]
-    p2 = st.session_state.get("cmp_p2", p2_default)
-    if p2 not in p2_candidates:
-        p2 = p2_default
-    k_clusters = int(st.session_state.get("cmp_k_clusters", 8))
-    compare_df = cached_compare(env_name=env_name, p1=p1, p2=p2, k_clusters=k_clusters, seed=selected_seed)
+    p1 = default_p1 if default_p1 in BENCHMARK_POLICIES else policy
+    compare_options = [name for name in BENCHMARK_POLICIES if name != p1]
+    compare_to = default_p2 if default_p2 in compare_options else compare_options[0]
+    compare_df = cached_compare(env_name=env_name, p1=p1, p2=compare_to, k_clusters=8, seed=selected_seed)
     compare_df = compare_df[compare_df["js_div"].notna()].copy()
-    compare_row = None
-    if not compare_df.empty:
-        compare_clusters = compare_df["cluster"].astype(int).tolist()
-        if st.session_state.get("selected_cluster") not in compare_clusters:
-            st.session_state["selected_cluster"] = int(compare_clusters[0])
-        compare_row = compare_df[compare_df["cluster"] == int(st.session_state["selected_cluster"])].iloc[0]
-    _track_task_session_state(
-        selected_window_k=int(selected_window["k"]),
-        filter_signature={
-            "k_range": tuple(k_range),
-            "focus_mode": focus_mode,
-            "anomaly_threshold": round(float(anomaly_threshold), 6),
-            "shift_threshold": round(float(shift_threshold), 6),
-            "top_k_windows": int(top_k_windows),
-        },
-        compare_signature={
-            "p1": p1,
-            "p2": p2,
-            "k_clusters": int(k_clusters),
-            "selected_cluster": int(st.session_state.get("selected_cluster")) if st.session_state.get("selected_cluster") is not None else None,
-        },
-    )
-    question_frame = _task_question_rows(
-        task_name=task_name,
-        role_name=role_name,
+    compare_row = _top_cluster_finding(compare_df)
+
+    decision = _system_action_summary(
         env_name=env_name,
+        task_name=task_name,
         policy=policy,
-        filtered_df=filtered_df,
+        selected_seed=selected_seed,
         window_row=selected_window,
         compare_row=compare_row,
     )
+    readiness = _decision_readiness(task_name=task_name, filtered_df=filtered_df, window_row=selected_window, compare_row=compare_row)
+    focus_df = _filter_focus_by_action(_operational_focus_frame(filtered_df, int(selected_window["k"])), action_filter)
+    active_row = _focused_action_row(focus_df, int(selected_window["k"]))
 
-    demo_tabs = st.tabs(["Mission", "Evidence", "Compare", "Action", "Notebook", "Export"])
+    user_cols = st.columns([1.1, 1.5, 1.2, 1.2])
+    user_cols[0].metric("Role", profile["user"])
+    user_cols[1].metric("Scenario", profile["short_label"])
+    user_cols[1].caption(profile["problem"])
+    user_cols[2].metric("Suggested action", str(active_row["recommended_action"]))
+    user_cols[3].metric("Owner", decision["owner"])
 
-    with demo_tabs[0]:
-        st.markdown("**Purpose.** Start from the operator's question, confirm the current case, and understand how the linked evidence will support the decision.")
-        mission_cols = st.columns(4)
-        mission_cols[0].info("**Primary user**\n\n{0}".format(role_name))
-        mission_cols[1].info("**Decision goal**\n\n{0}".format(_user_task_label(task_name)))
-        mission_cols[2].info(
-            "**Current case**\n\n{0} / {1} / run {2}".format(
-                _format_env_name(env_name),
-                _format_policy_name(policy),
-                selected_seed if selected_seed is not None else "default",
-            )
+    metric_cols = st.columns(5)
+    metric_cols[0].metric("Windows", int(len(filtered_df)))
+    metric_cols[1].metric("Selected window", int(selected_window["k"]))
+    metric_cols[2].metric("Unusual", "{0:.3f}".format(float(selected_window["anomaly_score"])))
+    metric_cols[3].metric("Changed", "{0:.3f}".format(float(selected_window["regime_shift_score"])))
+    metric_cols[4].metric("Priority", "{0:.1f}/100".format(float(active_row["priority_index"])))
+
+    cockpit_k = _render_visual_decision_cockpit(
+        filtered_df=filtered_df,
+        selected_k=int(selected_window["k"]),
+        env_name=env_name,
+        policy=policy,
+        task_name=task_name,
+        decision=decision,
+        readiness=readiness,
+        anomaly_threshold=float(anomaly_threshold),
+        shift_threshold=float(shift_threshold),
+        top_k_windows=int(top_k_windows),
+        action_filter=action_filter,
+    )
+    if cockpit_k is not None and cockpit_k != int(selected_window["k"]):
+        st.session_state["selected_k"] = int(cockpit_k)
+        selected_window = filtered_df[filtered_df["k"] == int(cockpit_k)].iloc[0]
+        focus_df = _filter_focus_by_action(_operational_focus_frame(filtered_df, int(selected_window["k"])), action_filter)
+
+    behavior_fig = build_behavior_space_figure(
+        filtered_df,
+        env_name=env_name,
+        color_by=st.session_state.get("multi_color_by", "anomaly_score"),
+    )
+    behavior_fig.update_layout(
+        title="Windows with similar behavior",
+        height=340,
+        xaxis_title="",
+        yaxis_title="",
+        margin={"t": 52, "b": 20},
+    )
+    behavior_fig.update_traces(
+        hovertemplate=(
+            "window=%{customdata[0]}<br>unusual=%{customdata[1]:.3f}"
+            "<br>changed=%{customdata[2]:.3f}<br>result=%{customdata[4]:.3f}<extra></extra>"
         )
-        mission_cols[3].info("**Focused window**\n\n{0}".format(_window_label(selected_window)))
-        scenario_cols = st.columns([1.2, 1.3, 1.5])
-        with scenario_cols[0]:
-            st.markdown("**User scenario**")
-            st.write(scenario_copy)
-        with scenario_cols[1]:
-            st.markdown("**User problem**")
-            st.write(problem_statement)
-        with scenario_cols[2]:
-            st.markdown("**Working rhythm**")
-            st.markdown("- Narrow the windows.")
-            st.markdown("- Focus one case.")
-            st.markdown("- Check controller differences if needed.")
-            st.markdown("- Save a note and export a memo.")
-        st.markdown("**Fundamental questions this workspace answers**")
-        st.dataframe(question_frame, use_container_width=True, hide_index=True)
+    )
+    behavior_selection = _plotly_chart_with_optional_selection(
+        behavior_fig,
+        key="multi_behavior_space",
+        use_container_width=True,
+    )
+    picked_k = _selected_window(behavior_selection)
+    if picked_k is not None and picked_k in filtered_df["k"].astype(int).tolist():
+        point_focus_df = _operational_focus_frame(filtered_df, int(picked_k))
+        point_row = point_focus_df[point_focus_df["k"].astype(int) == int(picked_k)].iloc[0]
+        _set_window_point_explanation(
+            chart="Windows with similar behavior",
+            env_name=env_name,
+            policy=policy,
+            task_name=task_name,
+            row=point_row,
+        )
+        if int(picked_k) != int(st.session_state["selected_k"]) or st.session_state.get("multi_action_filter") != "All actions":
+            _queue_multi_dashboard_update(selected_k=int(picked_k), multi_action_filter="All actions")
 
-    with demo_tabs[1]:
-        st.markdown("**Purpose.** Answer the current question by moving from ranked evidence to linked charts to a plain-language explanation.")
-        walkthrough = [
-            "1. Start from the ranked windows that best answer the active question.",
-            "2. Click the behavior map or the timeline to focus one time segment.",
-            "3. Read the explanation panel in plain language.",
-            "4. Move to Action or Notebook when the focused case is ready.",
-        ]
-        for line in walkthrough:
-            st.markdown(line)
-        st.markdown("**Question tracker**")
-        st.dataframe(question_frame, use_container_width=True, hide_index=True)
-        ranked_df = _window_rank_frame(filtered_df, task_name, top_k_windows)
-        st.subheader("Top Time Segments For This Question")
-        ranked_cols = st.columns([2.6, 1.2, 1.2, 1, 1])
-        ranked_cols[0].markdown("**Time segment**")
-        ranked_cols[1].markdown("**Risk flag**")
-        ranked_cols[2].markdown("**Change**")
-        ranked_cols[3].markdown("**Outcome**")
-        ranked_cols[4].markdown("**Focus**")
-        for idx, (_, row) in enumerate(ranked_df.iterrows()):
-            row_cols = st.columns([2.6, 1.2, 1.2, 1, 1])
-            row_cols[0].markdown("`{0}`".format(_window_label(row)))
-            row_cols[1].markdown("{0:.3f}".format(float(row["anomaly_score"])))
-            row_cols[2].markdown("{0:.3f}".format(float(row["regime_shift_score"])))
-            row_cols[3].markdown("{0:.3f}".format(float(row["r_bar"])))
-            if row_cols[4].button("Focus", key="focus_window_{0}".format(idx), type="secondary"):
-                st.session_state["selected_k"] = int(row["k"])
-                _trigger_rerun()
-
-        linked_cols = st.columns([3, 2])
-        with linked_cols[0]:
-            st.subheader("Behavior Map")
-            st.caption("Click any point to update the timeline, case details, action summary, notebook, and exports.")
-            behavior_selection = _plotly_chart_with_optional_selection(
-                build_behavior_space_figure(filtered_df, env_name=env_name, color_by=color_by),
-                key="behavior_space",
-                use_container_width=True,
-            )
-            picked_k = _selected_window(behavior_selection)
-            if picked_k is not None:
-                st.session_state["selected_k"] = int(picked_k)
-                selected_window = filtered_df[filtered_df["k"] == int(picked_k)].iloc[0]
-            st.subheader("Timeline")
-            temporal_selection = _plotly_chart_with_optional_selection(
-                build_temporal_figure(filtered_df, int(st.session_state["selected_k"])),
-                key="temporal_view",
-                use_container_width=True,
-            )
-            timeline_k = _selected_window(temporal_selection)
-            if timeline_k is not None and timeline_k in filtered_df["k"].astype(int).tolist():
-                st.session_state["selected_k"] = int(timeline_k)
-                selected_window = filtered_df[filtered_df["k"] == int(timeline_k)].iloc[0]
-        with linked_cols[1]:
-            st.subheader("Explanation")
-            st.caption("This panel turns the focused chart selection into a short explanation for a non-specialist user.")
-            window_options = filtered_df["k"].astype(int).tolist()
-            selected_now = st.selectbox(
-                "Focused time segment",
-                options=window_options,
-                index=window_options.index(int(st.session_state["selected_k"])) if int(st.session_state["selected_k"]) in window_options else 0,
-                key="window_detail_select",
-            )
-            st.session_state["selected_k"] = int(selected_now)
-            selected_window = filtered_df[filtered_df["k"] == int(selected_now)].iloc[0]
-            detail_cols = st.columns(2)
-            detail_cols[0].metric("Time segment", int(selected_window["k"]))
-            detail_cols[1].metric("Span", "{0}-{1}".format(int(selected_window["t_start"]), int(selected_window["t_end"])))
-            detail_cols = st.columns(2)
-            detail_cols[0].metric("Risk flag", "{0:.3f}".format(float(selected_window["anomaly_score"])))
-            detail_cols[1].metric("Change confidence", "{0:.3f}".format(float(selected_window["regime_shift_score"])))
-            detail_cols = st.columns(2)
-            detail_cols[0].metric("Outcome", "{0:.3f}".format(float(selected_window["r_bar"])))
-            detail_cols[1].metric("Action-switch rate", "{0:.3f}".format(float(selected_window["switch_rate"])))
-            detail_cols = st.columns(2)
-            detail_cols[0].metric("Behavior entropy", "{0:.3f}".format(float(selected_window["H_bar"])))
-            detail_cols[1].metric("Decision concentration", "{0:.3f}".format(float(selected_window["dominance_gap"])))
-            if "gt_intervention" in selected_window.index:
-                st.markdown(
-                    "**Reference marker.** intervention=`{0}` | change-start=`{1}`".format(
-                        bool(selected_window["gt_intervention"]),
-                        bool(selected_window["gt_shift_start"]),
-                    )
+    benchmark_df = cached_report_csv("benchmark_table.csv")
+    score_cols = st.columns(2)
+    with score_cols[0]:
+        heatmap_selection = _plotly_chart_with_optional_selection(
+            _build_benchmark_heatmap(benchmark_df, score_metric),
+            key="multi_score_heatmap",
+            use_container_width=True,
+        )
+        heatmap_custom = _selected_customdata(heatmap_selection)
+        if len(heatmap_custom) >= 2:
+            selected_env = str(heatmap_custom[0])
+            selected_policy = str(heatmap_custom[1])
+            if selected_env in ENVIRONMENTS and selected_policy in BENCHMARK_POLICIES:
+                _set_benchmark_cell_explanation(
+                    benchmark_df=benchmark_df,
+                    env_name=selected_env,
+                    policy=selected_policy,
+                    metric=score_metric,
+                    chart="5-System Score Map",
                 )
-            st.markdown(_window_explain(filtered_df, policy=policy, env_name=env_name, window_row=selected_window))
-            st.caption("The behavior map, ranked list, filters, and explanation panel are coordinated views of the same focused time segment.")
+                heatmap_changed = (
+                    st.session_state.get("multi_env") != selected_env
+                    or st.session_state.get("multi_policy") != selected_policy
+                )
+                if heatmap_changed:
+                    seeds = cached_available_seeds(selected_env, selected_policy)
+                    _queue_multi_dashboard_update(
+                        multi_env=selected_env,
+                        multi_policy=selected_policy,
+                        multi_action_filter="All actions",
+                        selected_k=None,
+                        multi_seed=23 if 23 in seeds else (int(seeds[0]) if seeds else None),
+                    )
+    with score_cols[1]:
+        scoreboard_selection = _plotly_chart_with_optional_selection(
+            _build_env_policy_metric_figure(benchmark_df, env_name),
+            key="multi_controller_scoreboard",
+            use_container_width=True,
+        )
+        scoreboard_custom = _selected_customdata(scoreboard_selection)
+        if len(scoreboard_custom) >= 2:
+            selected_policy = str(scoreboard_custom[0])
+            selected_metric = str(scoreboard_custom[1])
+            if selected_policy in BENCHMARK_POLICIES:
+                if selected_metric in {"anomaly_auc", "shift_auc", "reward_jump_auc"}:
+                    _set_benchmark_cell_explanation(
+                        benchmark_df=benchmark_df,
+                        env_name=env_name,
+                        policy=selected_policy,
+                        metric=selected_metric,
+                        chart="{0}: Controller Scoreboard".format(_format_env_name(env_name)),
+                    )
+                scoreboard_changed = st.session_state.get("multi_policy") != selected_policy
+                metric_changed = selected_metric in {"anomaly_auc", "shift_auc", "reward_jump_auc"} and (
+                    st.session_state.get("multi_score_metric") != selected_metric
+                )
+                if scoreboard_changed or metric_changed:
+                    updates = {
+                        "multi_policy": selected_policy,
+                        "multi_action_filter": "All actions",
+                    }
+                    if selected_metric in {"anomaly_auc", "shift_auc", "reward_jump_auc"}:
+                        updates["multi_score_metric"] = selected_metric
+                    if scoreboard_changed:
+                        seeds = cached_available_seeds(env_name, selected_policy)
+                        updates["selected_k"] = None
+                        updates["multi_seed"] = 23 if 23 in seeds else (int(seeds[0]) if seeds else None)
+                    _queue_multi_dashboard_update(**updates)
 
-    with demo_tabs[2]:
-        st.markdown("**Purpose.** Use this page when the question is not only what happened, but whether another controller behaves differently.")
-        cmp_cols = st.columns([1, 1, 1.2, 1])
-        with cmp_cols[0]:
-            p1 = st.selectbox("Controller 1", options=BENCHMARK_POLICIES, index=_control_default(BENCHMARK_POLICIES, default_p1), key="cmp_p1")
-        with cmp_cols[1]:
-            p2_candidates = [name for name in BENCHMARK_POLICIES if name != p1]
-            p2 = st.selectbox(
-                "Controller 2",
-                options=p2_candidates,
-                index=_control_default(p2_candidates, default_p2 if default_p2 != p1 else p2_candidates[0]),
-                key="cmp_p2",
-            )
-        with cmp_cols[2]:
-            k_clusters = st.slider("Behavior groups", min_value=3, max_value=20, value=int(st.session_state.get("cmp_k_clusters", 8)), key="cmp_k_clusters")
-        with cmp_cols[3]:
-            compare_top_k = st.slider("Top behavior groups", min_value=3, max_value=12, value=8)
+    st.markdown('<div class="section-chip">Controller Comparison</div>', unsafe_allow_html=True)
+    cmp_cols = st.columns([1, 1, 1, 1])
+    with cmp_cols[0]:
+        p1 = st.selectbox("Controller A", options=BENCHMARK_POLICIES, index=_control_default(BENCHMARK_POLICIES, policy), key="multi_cmp_p1", format_func=_format_policy_name)
+    p2_options = [name for name in BENCHMARK_POLICIES if name != p1]
+    with cmp_cols[1]:
+        p2 = st.selectbox("Controller B", options=p2_options, index=_control_default(p2_options, compare_to), key="multi_cmp_p2", format_func=_format_policy_name)
+    with cmp_cols[2]:
+        k_clusters = st.slider("Groups", min_value=3, max_value=20, value=8, key="multi_cmp_clusters")
+    with cmp_cols[3]:
+        compare_top_k = st.slider("Show", min_value=3, max_value=12, value=8, key="multi_cmp_top_k")
 
-        compare_df = cached_compare(env_name=env_name, p1=p1, p2=p2, k_clusters=k_clusters, seed=selected_seed)
-        compare_df = compare_df[compare_df["js_div"].notna()].copy()
-        top_df = compare_df.head(min(compare_top_k, len(compare_df)))
-        if compare_df.empty or top_df.empty:
-            st.warning("No valid controller-comparison groups are available for the current pair.")
-        else:
+    compare_df = cached_compare(env_name=env_name, p1=p1, p2=p2, k_clusters=k_clusters, seed=selected_seed)
+    compare_df = compare_df[compare_df["js_div"].notna()].copy()
+    if not compare_df.empty:
+        top_df = compare_df.sort_values("js_div", ascending=False).head(compare_top_k).copy()
+        top_df["behavior_group"] = top_df["cluster"].astype(int).astype(str)
+        selected_compare_cluster: Optional[int] = None
+        selected_compare_chart = "Behavior Difference"
+        compare_cols = st.columns([1.15, 1])
+        with compare_cols[0]:
             compare_bar = px.bar(
-                top_df.assign(behavior_group=top_df["cluster"].astype(int).astype(str)),
+                top_df,
                 x="behavior_group",
                 y="js_div",
                 color="reward_gap",
-                title="Behavior Difference By Group",
-                labels={"behavior_group": "Behavior group", "js_div": "Behavior difference", "reward_gap": "Outcome gap"},
+                custom_data=["cluster", "reward_gap", "n_total"],
+                title="Where controllers differ",
+                labels={"behavior_group": "Group", "js_div": "How different", "reward_gap": "Result impact"},
                 color_continuous_scale="Tealgrn",
             )
-            compare_bar.update_layout(template="plotly_white", coloraxis_colorbar_title="Outcome gap")
+            compare_bar.update_traces(
+                hovertemplate="group=%{x}<br>difference=%{y:.3f}<br>result impact=%{customdata[1]:.3f}<br>windows=%{customdata[2]}<extra></extra>"
+            )
+            compare_bar.update_layout(template="plotly_white", height=330)
             compare_selection = _plotly_chart_with_optional_selection(
                 compare_bar,
-                key="comparison_bar",
+                key="multi_comparison_bar",
                 use_container_width=True,
             )
-            selected_cluster = _selected_cluster(compare_selection)
-            if selected_cluster is not None:
-                st.session_state["selected_cluster"] = int(selected_cluster)
-            if st.session_state.get("selected_cluster") not in top_df["cluster"].astype(int).tolist():
-                st.session_state["selected_cluster"] = int(top_df.iloc[0]["cluster"])
+            selected_compare_cluster = _selected_cluster(compare_selection)
+        with compare_cols[1]:
+            frontier = px.scatter(
+                top_df,
+                x="reward_gap",
+                y="js_div",
+                size="n_total",
+                color="cluster",
+                custom_data=["cluster", "reward_gap", "js_div", "n_total"],
+                title="Difference vs result impact",
+                labels={"reward_gap": "Result impact", "js_div": "How different"},
+            )
+            frontier.update_traces(
+                hovertemplate="group=%{customdata[0]}<br>result impact=%{customdata[1]:.3f}<br>difference=%{customdata[2]:.3f}<br>windows=%{customdata[3]}<extra></extra>"
+            )
+            frontier.update_layout(template="plotly_white", height=330, legend_title="Group")
+            frontier_selection = _plotly_chart_with_optional_selection(
+                frontier,
+                key="multi_comparison_frontier",
+                use_container_width=True,
+            )
+            frontier_custom = _selected_customdata(frontier_selection)
+            if frontier_custom:
+                try:
+                    selected_compare_cluster = int(frontier_custom[0])
+                    selected_compare_chart = "Outcome Gap vs Behavior Difference"
+                except (TypeError, ValueError):
+                    pass
+        if selected_compare_cluster is not None and selected_compare_cluster in compare_df["cluster"].astype(int).tolist():
+            selected_cluster_row = compare_df[compare_df["cluster"].astype(int) == int(selected_compare_cluster)].iloc[0]
+            _set_cluster_point_explanation(env_name, p1, p2, selected_cluster_row, selected_compare_chart)
+            st.session_state["selected_cluster"] = int(selected_compare_cluster)
+        if st.session_state.get("selected_cluster") in compare_df["cluster"].astype(int).tolist():
+            cluster_row = compare_df[compare_df["cluster"].astype(int) == int(st.session_state["selected_cluster"])].iloc[0]
+            group_cols = st.columns(4)
+            group_cols[0].metric("Selected group", int(cluster_row["cluster"]))
+            group_cols[1].metric("How different", "{0:.3f}".format(float(cluster_row["js_div"])))
+            group_cols[2].metric("Result impact", "{0:.3f}".format(float(cluster_row["reward_gap"])))
+            group_cols[3].metric("Windows", int(cluster_row["n_total"]))
+    else:
+        st.info("No comparison groups are available for this pair.")
 
-            compare_cols = st.columns([3, 2])
-            with compare_cols[0]:
-                cluster_fig = px.scatter(
-                    top_df,
-                    x="reward_gap",
-                    y="js_div",
-                    size="n_total",
-                    color="cluster",
-                    hover_name="cluster",
-                    title="Behavior Group Frontier",
-                    labels={"reward_gap": "Outcome gap", "js_div": "Behavior difference"},
-                )
-                cluster_fig.update_layout(template="plotly_white", legend_title="Behavior group")
-                st.plotly_chart(cluster_fig, use_container_width=True)
-            with compare_cols[1]:
-                cluster_options = top_df["cluster"].astype(int).tolist()
-                cluster_now = st.selectbox(
-                    "Focused behavior group",
-                    options=cluster_options,
-                    index=cluster_options.index(int(st.session_state["selected_cluster"])) if int(st.session_state["selected_cluster"]) in cluster_options else 0,
-                    key="cluster_detail_select",
-                )
-                st.session_state["selected_cluster"] = int(cluster_now)
-                cluster_row = compare_df[compare_df["cluster"] == int(cluster_now)].iloc[0]
-                compare_row = cluster_row
-                detail_cols = st.columns(2)
-                detail_cols[0].metric("Behavior difference", "{0:.3f}".format(float(cluster_row["js_div"])))
-                detail_cols[1].metric("Outcome gap", "{0:.3f}".format(float(cluster_row["reward_gap"])))
-                detail_cols = st.columns(2)
-                detail_cols[0].metric("Visible time segments", int(float(cluster_row["n_total"])))
-                detail_cols[1].metric("Behavior group", int(cluster_row["cluster"]))
-                st.markdown(_cluster_explain(cluster_row, env_name=env_name, p1=p1, p2=p2, cluster_count=k_clusters))
-
-            top_cluster = _top_cluster_finding(compare_df)
-            if top_cluster is not None:
-                st.markdown(
-                    "The strongest visible separation is behavior group `{0}`: **{1}** vs **{2}** reaches behavior difference `{3:.3f}` and outcome gap `{4:.3f}`.".format(
-                        int(top_cluster["cluster"]),
-                        _format_policy_name(p1),
-                        _format_policy_name(p2),
-                        float(top_cluster["js_div"]),
-                        float(top_cluster["reward_gap"]),
-                    )
-                )
-
-    decision = _decision_summary(
-        role_name=role_name,
-        task_name=task_name,
-        env_name=env_name,
-        policy=policy,
-        window_row=selected_window,
-        compare_row=compare_row,
-    )
-
-    with demo_tabs[3]:
-        st.markdown("**Purpose.** Turn the focused evidence into a clear action a user can take or hand off.")
-        decision = _decision_summary(
-            role_name=role_name,
+    st.markdown('<div class="section-chip">Save / Export</div>', unsafe_allow_html=True)
+    export_cols = st.columns([1.2, 1.2, 1])
+    with export_cols[0]:
+        st.session_state.setdefault("case_note_title", "")
+        note_title = st.text_input("Case title", key="case_note_title", placeholder="Short case name")
+    with export_cols[1]:
+        st.session_state.setdefault("case_note_status", "Needs review")
+        note_status = st.selectbox("Status", options=USER_CASE_STATUS_OPTIONS, key="case_note_status")
+    with export_cols[2]:
+        note_owner = st.text_input("Owner", value=decision["owner"], key="case_note_owner_multi")
+    note_body = st.text_area("Note", height=90, placeholder="What should the user do next?", key="case_note_body_multi")
+    save_cols = st.columns(3)
+    if save_cols[0].button("Save case", use_container_width=True):
+        question_frame = _task_question_rows(
             task_name=task_name,
+            role_name=profile["user"],
             env_name=env_name,
             policy=policy,
+            filtered_df=filtered_df,
             window_row=selected_window,
             compare_row=compare_row,
         )
-        readiness = _decision_readiness(task_name=task_name, filtered_df=filtered_df, window_row=selected_window, compare_row=compare_row)
-        st.subheader("Decision Summary")
-        top_cols = st.columns(3)
-        top_cols[0].metric("Decision level", decision["severity"])
-        top_cols[1].metric("Primary owner", decision["owner"])
-        top_cols[2].metric("Focused case", "{0} / {1}".format(_format_env_name(env_name), _format_policy_name(policy)))
-        st.metric("Decision readiness", readiness["level"], "{0}/{1} checks".format(readiness["score"], readiness["total"]))
-        st.progress(float(readiness["score"]) / float(readiness["total"]))
-        summary_cols = st.columns([1.4, 1.2])
-        with summary_cols[0]:
-            st.markdown("**Decision**")
-            st.write(decision["decision"])
-            st.markdown("**Risk assessment**")
-            st.write(decision["risk"])
-            st.markdown("**{0}**".format(decision["action_title"]))
-            st.write(decision["recommendation"])
-        with summary_cols[1]:
-            st.markdown("**Evidence used for this decision**")
-            for item in decision["evidence"]:
-                st.markdown("- {0}".format(item))
-            st.markdown("**Readiness checks**")
-            for check in readiness["checks"]:
-                status = "Ready" if check["ready"] else "Missing"
-                st.markdown("- **{0}**: {1}. {2}".format(status, check["label"], check["detail"]))
-        st.markdown("**Current answers to the user's core questions**")
-        for record in _question_answer_records(question_frame):
-            st.markdown("**{0}**".format(record["question"]))
-            st.write(record["current_answer"])
-            st.caption("Evidence source: {0}".format(record["evidence_source"]))
-        st.markdown("**Action checklist**")
-        for step in diagnosis["next_steps"]:
-            st.markdown("- {0}".format(step))
-        support_signal, support_reason = _task_support_signal(task_name, selected_window, compare_row)
-        perf_cols = st.columns(4)
-        perf_cols[0].metric("Task timer", "{0:.1f}s".format(max(0.0, float(time.time() - float(st.session_state.get("task_session_started_at", time.time()))))))
-        perf_cols[1].metric("Exports used", int(st.session_state.get("task_export_count", 0)))
-        perf_cols[2].metric("Notebook saves", int(st.session_state.get("task_notebook_saves", 0)))
-        perf_cols[3].metric("Support signal", "Yes" if support_signal else "No")
-        st.caption("Support reason: {0}".format(support_reason))
-        st.session_state.setdefault("task_reviewer_name", "")
-        st.session_state.setdefault("task_user_confidence", 4.0)
-        with st.form("task_completion_form", clear_on_submit=False):
-            completion_cols = st.columns([1.2, 1.0])
-            with completion_cols[0]:
-                reviewer_name = st.text_input(
-                    "Operator / reviewer",
-                    key="task_reviewer_name",
-                    placeholder="Name or team completing this review",
-                )
-            with completion_cols[1]:
-                user_confidence = st.slider(
-                    "Confidence",
-                    min_value=1.0,
-                    max_value=5.0,
-                    value=float(st.session_state.get("task_user_confidence", 4.0)),
-                    step=0.5,
-                    key="task_user_confidence",
-                )
-            log_task_completion = st.form_submit_button("Log completed user task", use_container_width=True)
-        if log_task_completion:
-            task_entry = _compose_task_log_entry(
-                workflow_name=workflow_name,
-                role_name=role_name,
-                task_name=task_name,
-                env_name=env_name,
-                policy=policy,
-                selected_seed=selected_seed,
-                window_row=selected_window,
-                decision=decision,
-                question_frame=question_frame,
-                compare_row=compare_row,
-                user_confidence=float(user_confidence),
-                reviewer_name=reviewer_name,
-            )
-            _save_user_task_entry(task_entry)
-            st.success("Logged the completed task for course task-performance analysis.")
-            _reset_task_session(case_signature)
-        st.caption("The current focused case is shared with the Evidence, Compare, Notebook, and Export tabs.")
-
-    with demo_tabs[4]:
-        st.markdown("**Purpose.** Save annotations, mark case status, and build a reusable notebook of review cases.")
-        with st.form("case_note_form", clear_on_submit=False):
-            note_cols = st.columns([1.3, 1.0, 1.0])
-            with note_cols[0]:
-                note_title = st.text_input(
-                    "Case title",
-                    key="case_note_title",
-                    placeholder="Short title for this case",
-                )
-            with note_cols[1]:
-                note_status = st.selectbox(
-                    "Case status",
-                    options=USER_CASE_STATUS_OPTIONS,
-                    key="case_note_status",
-                )
-            with note_cols[2]:
-                note_owner = st.text_input("Owner", key="case_note_owner")
-            note_tags = st.multiselect(
-                "Tags",
-                options=USER_NOTE_TAG_OPTIONS,
-                key="case_note_tags",
-            )
-            note_body = st.text_area(
-                "Analyst note",
-                key="case_note_body",
-                height=180,
-                placeholder="Explain what you saw, why it matters, and what should happen next.",
-            )
-            save_case = st.form_submit_button("Save case to notebook", use_container_width=True)
-        if save_case:
-            entry = _compose_case_note_entry(
-                workflow_name=workflow_name,
-                role_name=role_name,
-                task_name=task_name,
-                env_name=env_name,
-                policy=policy,
-                selected_seed=selected_seed,
-                window_row=selected_window,
-                decision=decision,
-                note_title=note_title,
-                note_body=note_body,
-                note_status=note_status,
-                note_owner=note_owner,
-                note_tags=note_tags,
-                compare_row=compare_row,
-                question_frame=question_frame,
-            )
-            _save_case_notebook_entry(entry)
-            st.session_state["task_notebook_saves"] = int(st.session_state.get("task_notebook_saves", 0)) + 1
-            st.success("Saved the current case to the notebook.")
-
-        notebook_frame = _case_notebook_frame()
-        if notebook_frame.empty:
-            st.info("No saved cases yet. Save the current case to start the notebook.")
-        else:
-            filter_cols = st.columns([1.0, 1.0, 2.2])
-            with filter_cols[0]:
-                status_filter = st.multiselect(
-                    "Filter by status",
-                    options=sorted(notebook_frame["status"].dropna().unique().tolist()),
-                    default=sorted(notebook_frame["status"].dropna().unique().tolist()),
-                )
-            with filter_cols[1]:
-                role_filter = st.multiselect(
-                    "Filter by role",
-                    options=sorted(notebook_frame["role"].dropna().unique().tolist()),
-                    default=sorted(notebook_frame["role"].dropna().unique().tolist()),
-                )
-            visible_notebook = notebook_frame.copy()
-            if status_filter:
-                visible_notebook = visible_notebook[visible_notebook["status"].isin(status_filter)]
-            if role_filter:
-                visible_notebook = visible_notebook[visible_notebook["role"].isin(role_filter)]
-            st.dataframe(_case_note_export_frame(visible_notebook), use_container_width=True, hide_index=True)
-            if not visible_notebook.empty:
-                case_options = visible_notebook.apply(lambda row: _entry_summary_line(row.to_dict()), axis=1).tolist()
-                selected_case = st.selectbox("Saved case detail", options=case_options)
-                case_idx = case_options.index(selected_case)
-                case_entry = visible_notebook.iloc[case_idx].to_dict()
-                st.markdown(_build_case_note_markdown(case_entry))
-                saved_case_downloaded = st.download_button(
-                    "Download selected saved case",
-                    data=_build_case_note_markdown(case_entry).encode("utf-8"),
-                    file_name="saved_case_note.md",
-                    mime="text/markdown",
-                    use_container_width=True,
-                )
-                if saved_case_downloaded:
-                    _register_export_event()
-
-    with demo_tabs[5]:
-        st.markdown("**Purpose.** Export work products a user can hand to a reviewer, incident owner, or operations lead.")
-        decision_md = "\n".join(
-            [
-                "# RLVA Decision Summary",
-                "",
-                "- User role: {0}".format(role_name),
-                "- User task: {0}".format(_user_task_label(task_name)),
-                "- System: {0}".format(_format_env_name(env_name)),
-                "- Controller: {0}".format(_format_policy_name(policy)),
-                "- Decision level: {0}".format(decision["severity"]),
-                "- Primary owner: {0}".format(decision["owner"]),
-                "",
-                "## Decision",
-                "",
-                decision["decision"],
-                "",
-                "## Risk assessment",
-                "",
-                decision["risk"],
-                "",
-                "## Recommended next action",
-                "",
-                decision["recommendation"],
-                "",
-                "## Evidence",
-                "",
-            ]
-            + ["- {0}".format(item) for item in decision["evidence"]]
-            + [""]
-        )
-        review_memo_md = _build_review_memo_markdown(
-            role_name=role_name,
-            workflow_name=workflow_name,
-            env_name=env_name,
-            policy=policy,
-            selected_seed=selected_seed,
-            task_name=task_name,
-            window_row=selected_window,
-            decision=decision,
-            note_title=st.session_state.get("case_note_title", ""),
-            note_body=st.session_state.get("case_note_body", ""),
-            question_frame=question_frame,
-        )
-        task_answer_md = _build_task_answer_brief_markdown(
-            workflow_name=workflow_name,
-            role_name=role_name,
+        entry = _compose_case_note_entry(
+            workflow_name=profile["short_label"],
+            role_name=profile["user"],
             task_name=task_name,
             env_name=env_name,
             policy=policy,
             selected_seed=selected_seed,
             window_row=selected_window,
             decision=decision,
+            note_title=note_title,
+            note_body=note_body,
+            note_status=note_status,
+            note_owner=note_owner,
+            note_tags=["High-risk system behavior"] if decision["severity"] == "High" else ["Follow-up required"],
+            compare_row=compare_row,
             question_frame=question_frame,
         )
-        window_md = _build_window_evidence_markdown(env_name=env_name, policy=policy, task_name=task_name, window_row=selected_window)
-        export_cols = st.columns(3)
-        decision_downloaded = export_cols[0].download_button(
-            "Download decision summary",
-            data=decision_md.encode("utf-8"),
-            file_name="{0}_{1}_decision_summary.md".format(env_name, policy),
-            mime="text/markdown",
-            use_container_width=True,
-        )
-        if decision_downloaded:
-            _register_export_event()
-        review_memo_downloaded = export_cols[1].download_button(
-            "Download review memo",
-            data=review_memo_md.encode("utf-8"),
-            file_name="{0}_{1}_review_memo.md".format(env_name, policy),
-            mime="text/markdown",
-            use_container_width=True,
-        )
-        if review_memo_downloaded:
-            _register_export_event()
-        answer_brief_downloaded = export_cols[2].download_button(
-            "Download workflow answer brief",
-            data=task_answer_md.encode("utf-8"),
-            file_name="{0}_{1}_workflow_answer_brief.md".format(env_name, policy),
-            mime="text/markdown",
-            use_container_width=True,
-        )
-        if answer_brief_downloaded:
-            _register_export_event()
-        window_md = _build_window_evidence_markdown(env_name=env_name, policy=policy, task_name=task_name, window_row=selected_window)
-        window_evidence_downloaded = st.download_button(
-            "Download focused time-segment evidence",
-            data=window_md.encode("utf-8"),
-            file_name="{0}_{1}_window_k{2}_evidence.md".format(env_name, policy, int(selected_window["k"])),
-            mime="text/markdown",
-            use_container_width=True,
-        )
-        if window_evidence_downloaded:
-            _register_export_event()
-        filtered_csv_downloaded = st.download_button(
-            "Download filtered time segments CSV",
-            data=filtered_df.to_csv(index=False).encode("utf-8"),
-            file_name="{0}_{1}_{2}_filtered_windows.csv".format(env_name, policy, task_name.replace(" ", "_").lower()),
-            mime="text/csv",
-            use_container_width=True,
-        )
-        if filtered_csv_downloaded:
-            _register_export_event()
-        if not compare_df.empty and st.session_state.get("selected_cluster") in compare_df["cluster"].astype(int).tolist():
-            cluster_row = compare_df[compare_df["cluster"] == int(st.session_state["selected_cluster"])].iloc[0]
-            comparison_brief_md = _build_comparison_brief_markdown(
-                env_name=env_name,
-                p1=p1,
-                p2=p2,
-                cluster_count=k_clusters,
-                cluster_row=cluster_row,
-            )
-            cluster_md = _build_cluster_evidence_markdown(env_name=env_name, p1=p1, p2=p2, cluster_count=k_clusters, cluster_row=cluster_row)
-            compare_export_cols = st.columns(2)
-            comparison_brief_downloaded = compare_export_cols[0].download_button(
-                "Download controller comparison brief",
-                data=comparison_brief_md.encode("utf-8"),
-                file_name="{0}_{1}_vs_{2}_comparison_brief.md".format(env_name, p1, p2),
-                mime="text/markdown",
-                use_container_width=True,
-            )
-            if comparison_brief_downloaded:
-                _register_export_event()
-            cluster_evidence_downloaded = compare_export_cols[1].download_button(
-                "Download focused behavior-group evidence",
-                data=cluster_md.encode("utf-8"),
-                file_name="{0}_{1}_vs_{2}_cluster_{3}.md".format(env_name, p1, p2, int(cluster_row["cluster"])),
-                mime="text/markdown",
-                use_container_width=True,
-            )
-            if cluster_evidence_downloaded:
-                _register_export_event()
-            comparison_csv_downloaded = st.download_button(
-                "Download controller-comparison CSV",
-                data=compare_df.to_csv(index=False).encode("utf-8"),
-                file_name="{0}_{1}_vs_{2}_clusters.csv".format(env_name, p1, p2),
-                mime="text/csv",
-                use_container_width=True,
-            )
-            if comparison_csv_downloaded:
-                _register_export_event()
-        notebook_frame = _case_notebook_frame()
-        if not notebook_frame.empty:
-            notebook_export_cols = st.columns(2)
-            notebook_digest_downloaded = notebook_export_cols[0].download_button(
-                "Download notebook digest",
-                data=_build_notebook_digest_markdown(notebook_frame).encode("utf-8"),
-                file_name="case_notebook_digest.md",
-                mime="text/markdown",
-                use_container_width=True,
-            )
-            if notebook_digest_downloaded:
-                _register_export_event()
-            notebook_csv_downloaded = notebook_export_cols[1].download_button(
-                "Download notebook CSV",
-                data=_case_note_export_frame(notebook_frame).to_csv(index=False).encode("utf-8"),
-                file_name="case_notebook.csv",
-                mime="text/csv",
-                use_container_width=True,
-            )
-            if notebook_csv_downloaded:
-                _register_export_event()
-
-
-def _render_validation_panel() -> None:
-    _render_active_dataset_banner()
-    benchmark_df = cached_report_csv("benchmark_table.csv")
-    ablation_df = cached_report_csv("ablation_table.csv")
-    detection_df = cached_report_csv("detection_metrics.csv")
-    baseline_df = cached_report_csv("baseline_detector_table.csv")
-    sensitivity_df = cached_report_csv("budget_sensitivity_table.csv")
-    seed_df = cached_report_csv("benchmark_seed_metrics.csv")
-    robustness_cluster_df = cached_report_csv("robustness_cluster_table.csv")
-    robustness_window_df = cached_report_csv("robustness_window_table.csv")
-    coverage_df = cached_artifact_coverage()
-    case_index_df = _case_study_index()
-    timing_df = cached_interaction_timings()
-    course_interactivity = cached_course_interactivity_metrics()
-    submission_inventory = cached_submission_package_inventory()
-
-    if benchmark_df.empty:
-        st.warning("Benchmark reports are not available yet. Run the benchmark pipeline first.")
-        return
-
-    controls = _global_controls(benchmark_df)
-    asset_catalog = cached_asset_catalog()
-    main_story_df = _main_story_rows(benchmark_df)
-    supplement_df = _supplement_rows(benchmark_df)
-    lunarlander_benchmark = benchmark_df[benchmark_df["env"] == "lunarlander"].copy()
-
-    st.markdown(
-        """
-    <div class="hero-shell">
-        <div class="hero-kicker">Project Showcase</div>
-        <div class="hero-title">Why Trust This System</div>
-        <p class="hero-copy">
-            This workspace explains, in user language, why the diagnostic system is worth trusting: whether it
-            catches unusual behavior, whether it catches operating changes, and whether it stays reliable and
-            responsive during real use.
-        </p>
-    </div>
-    """,
-        unsafe_allow_html=True,
+        _save_case_notebook_entry(entry)
+        st.success("Saved.")
+    memo = _build_review_memo_markdown(
+        role_name=profile["user"],
+        workflow_name=profile["short_label"],
+        env_name=env_name,
+        policy=policy,
+        selected_seed=selected_seed,
+        task_name=task_name,
+        window_row=selected_window,
+        decision=decision,
+        note_title=note_title,
+        note_body=note_body,
+        question_frame=_task_question_rows(
+            task_name=task_name,
+            role_name=profile["user"],
+            env_name=env_name,
+            policy=policy,
+            filtered_df=filtered_df,
+            window_row=selected_window,
+            compare_row=compare_row,
+        ),
     )
-
-    headline_cols = st.columns(4)
-    headline_cols[0].metric("Main environments", 3, "inventory / traffic / lunarlander")
-    headline_cols[1].metric("Learned policies", 3, "pg / ppo / dqn")
-    headline_cols[2].metric("Exported figures", len(list(_artifact_fig_dir().glob("*.png"))))
-    headline_cols[3].metric("Report tables", len(list(BENCHMARK_REPORT_DIR.glob("*.csv"))))
-    st.caption(_task_focus_hint(controls["task_focus"], controls["mode"]))
-
-    tabs = st.tabs(
-        [
-            "Does it catch unusual behavior?",
-            "Does it catch operating changes?",
-            "Does it stay reliable and responsive?",
-        ]
+    save_cols[1].download_button(
+        "Download memo",
+        data=memo.encode("utf-8"),
+        file_name="{0}_{1}_memo.md".format(env_name, policy),
+        mime="text/markdown",
+        use_container_width=True,
     )
-
-    with tabs[0]:
-        st.markdown("**Purpose.** This page answers the first trust question: can the system reliably flag unusual behavior when it matters?")
-        st.markdown('<div class="section-chip">Unusual Behavior</div>', unsafe_allow_html=True)
-        st.subheader("How The System Catches Unusual Behavior")
-        topic = st.selectbox("Context for this question", options=list(OVERVIEW_TOPICS.keys()))
-        st.info(OVERVIEW_TOPICS[topic])
-        dataset_meta = cached_course_dataset_metadata()
-        dataset_sample = cached_course_dataset_sample(8)
-        st.markdown(
-            "The system looks for unusual short-term behavior inside long traces. Instead of trusting only a final outcome score, it breaks the run into time segments and summarizes what changed inside each one."
-        )
-        overview_cols = st.columns(2)
-        with overview_cols[0]:
-            st.markdown(
-                """
-                **What This Evidence Is Based On**
-
-                - Data source: trace records exported from five benchmark systems: `queue`, `inventory`, `traffic`, `cartpole`, and `lunarlander`.
-                - Controllers: learned controllers (`pg`, `ppo`, `dqn`) plus simple reference behaviors (`random`, `heuristic`).
-                - Reference labels: benchmark summaries include known intervention periods, so we can check whether the method catches suspicious behavior in the right places.
-                - Main user question here: can the system point to behavior that really looks unusual?
-                """
-            )
-        with overview_cols[1]:
-            st.markdown(
-                """
-                **What The User Gets**
-
-                - A ranked view of suspicious time segments instead of one opaque final score.
-                - Linked views that let the user inspect behavior, time, and explanation together.
-                - A clear sign of whether unusual behavior is being detected in the systems where it matters most.
-                """
-            )
-        if dataset_meta:
-            st.markdown('<div class="section-chip">Dataset Layer</div>', unsafe_allow_html=True)
-            dataset_cols = st.columns(4)
-            dataset_cols[0].metric("Persistent raw dataset", _format_bytes(int(dataset_meta.get("actual_bytes", 0))))
-            dataset_cols[1].metric("Raw records", int(dataset_meta.get("total_records", 0)))
-            dataset_cols[2].metric("Bytes / record", "{0:.3f}".format(float(dataset_meta.get("bytes_per_record", 0.0))))
-            dataset_cols[3].metric("Source trace files", int(dataset_meta.get("source_trace_files", 0)))
-            overview_cols = st.columns([2, 3])
-            with overview_cols[0]:
-                inventory_df = _course_dataset_inventory_frame()
-                if not inventory_df.empty:
-                    st.plotly_chart(_build_dataset_inventory_figure(inventory_df), use_container_width=True)
-            with overview_cols[1]:
-                if not dataset_sample.empty:
-                    st.dataframe(dataset_sample, use_container_width=True, hide_index=True)
-            st.caption("The final project is anchored in the stored 1GB raw trace corpus; the interface stays usable by working from derived summaries instead of re-reading the entire dataset every time.")
-
-    with tabs[1]:
-        st.markdown("**Purpose.** This page answers the second trust question: can the system catch meaningful operating changes, not just isolated odd moments?")
-        st.markdown('<div class="section-chip">Operating Changes</div>', unsafe_allow_html=True)
-        st.subheader("How The System Catches Operating Changes")
-        active_env = controls["env"] if controls["env"] != "all" else "inventory"
-        active_policy = controls["policy"] if controls["policy"] != "all" else "dqn"
-        active_metric = controls["metric"]
-        active_env_df = benchmark_df[benchmark_df["env"] == active_env].copy()
-        active_row = benchmark_df[(benchmark_df["env"] == active_env) & (benchmark_df["policy"] == active_policy)].copy()
-        if active_row.empty and not active_env_df.empty:
-            active_row = active_env_df.sort_values("{0}_mean".format(active_metric), ascending=_metric_ascending(active_metric)).head(1)
-            active_policy = str(active_row.iloc[0]["policy"])
-        lunarlander_dqn = benchmark_df[(benchmark_df["env"] == "lunarlander") & (benchmark_df["policy"] == "dqn")]
-        inventory_anomaly = _best_row(benchmark_df, env_name="inventory", metric="anomaly_auc")
-        traffic_shift = _best_row(benchmark_df, env_name="traffic", metric="shift_auc")
-        presentation_focus = st.selectbox("What operating-change evidence to emphasize", options=["Overall story", "Anomaly detection", "Shift localization", "Method comparison"])
-
-        st.markdown(
-            """
-        <div class="hero-shell">
-            <div class="hero-kicker">Trust Layer</div>
-            <div class="hero-title">Does It Catch Operating Changes?</div>
-            <p class="hero-copy">
-                This evidence focuses on larger state changes. It shows whether the system can notice when behavior
-                moves into a new operating mode, and whether that signal stays visible across multiple environments.
-            </p>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
-
-        highlight_cols = st.columns(3)
-        with highlight_cols[0]:
-            if not lunarlander_dqn.empty:
-                lunarlander_row = lunarlander_dqn.iloc[0]
-                st.metric("LunarLander DQN unusual-behavior score", f"{float(lunarlander_row['anomaly_auc_mean']):.3f}")
-                st.caption("Strongest standard-control example in the current benchmark.")
-        with highlight_cols[1]:
-            if inventory_anomaly is not None:
-                st.metric(
-                    "Inventory best unusual-behavior score",
-                    f"{float(inventory_anomaly['anomaly_auc_mean']):.3f}",
-                    _format_policy_name(str(inventory_anomaly["policy"])),
-                )
-                st.caption("Operational setting with the most stable signal for unusual behavior.")
-        with highlight_cols[2]:
-            if traffic_shift is not None:
-                st.metric(
-                    "Traffic best operating-change score",
-                    f"{float(traffic_shift['shift_auc_mean']):.3f}",
-                    _format_policy_name(str(traffic_shift["policy"])),
-                )
-                st.caption("Operational setting with the clearest operating-change signal.")
-
-        st.markdown("Traffic is the clearest operating-change story, inventory helps show the contrast with unusual-behavior detection, and LunarLander shows the idea on a familiar control task.")
-        if presentation_focus == "Anomaly detection":
-            st.info("Current emphasis: use inventory first if you want to contrast unusual behavior with operating change before moving into the shift story.")
-        elif presentation_focus == "Shift localization":
-            st.info("Current emphasis: foreground traffic and the change-sensitive plots, then use robustness views to show the change signal is not fragile.")
-        elif presentation_focus == "Method comparison":
-            st.info("Current emphasis: use simpler-method comparison and example cases to show that RLVA adds value beyond basic checks.")
-        else:
-            st.info("Current emphasis: give a balanced summary of where the system catches operating changes and why the evidence is believable.")
-        st.plotly_chart(_build_main_story_figure(main_story_df), use_container_width=True)
-        if not active_row.empty:
-            row = active_row.iloc[0]
-            st.markdown(
-                (
-                    "**Current takeaway.** Under the active filters, **{env} / {policy}** has "
-                    "`{metric}` = `{score:.3f}` with anomaly AUC `{anomaly:.3f}` and shift AUC `{shift:.3f}`."
-                ).format(
-                    env=_format_env_name(str(row["env"])),
-                    policy=_format_policy_name(str(row["policy"])),
-                    metric=_metric_label(active_metric),
-                    score=float(row["{0}_mean".format(active_metric)]),
-                    anomaly=float(row["anomaly_auc_mean"]),
-                    shift=float(row["shift_auc_mean"]),
-                )
-            )
-        st.markdown("**What we learned:** the method is strongest where interventions produce clear behavior changes, and short behavior summaries expose those changes earlier and more clearly than a final outcome score alone.")
-
-        story_cols = st.columns([3, 2])
-        with story_cols[0]:
-            if not lunarlander_benchmark.empty:
-                st.plotly_chart(_build_lunarlander_focus_figure(lunarlander_benchmark), use_container_width=True)
-        with story_cols[1]:
-            st.plotly_chart(_build_transfer_figure(supplement_df), use_container_width=True)
-        st.caption("These two views complement the main benchmark: LunarLander is the strongest standard-control example, while CartPole acts as supporting evidence rather than the headline result.")
-
-        lunarlander_policy_options = sorted(
-            ablation_df[ablation_df["env"] == "lunarlander"]["policy"].unique().tolist()
-        ) if not ablation_df.empty else []
-        if lunarlander_policy_options:
-            selected_lunarlander_policy = st.selectbox(
-                "LunarLander feature-importance policy",
-                options=lunarlander_policy_options,
-                index=_control_default(lunarlander_policy_options, controls["policy"]),
-                format_func=_format_policy_name,
-            )
-            lunarlander_ablation = ablation_df[
-                (ablation_df["env"] == "lunarlander") & (ablation_df["policy"] == selected_lunarlander_policy)
-            ].copy()
-        else:
-            selected_lunarlander_policy = "dqn"
-            lunarlander_ablation = pd.DataFrame()
-
-        if not lunarlander_ablation.empty:
-            st.subheader(
-                "What Information Matters: LunarLander / {0}".format(
-                    _format_policy_name(selected_lunarlander_policy)
-                )
-            )
-            action_only = lunarlander_ablation[lunarlander_ablation["feature_group"] == "action_only"]
-            full_only = lunarlander_ablation[lunarlander_ablation["feature_group"] == "full"]
-            if not action_only.empty and not full_only.empty:
-                action_row = action_only.iloc[0]
-                full_row = full_only.iloc[0]
-                st.markdown(
-                    "Action-only information reaches **{0}** unusual-behavior score and **{1}** operating-change score; full features reach **{2}** and **{3}**. "
-                    "This suggests the environment already exposes a substantial signal through action distribution and switching behavior.".format(
-                        str(action_row["anomaly_auc_summary"]),
-                        str(action_row["shift_auc_summary"]),
-                        str(full_row["anomaly_auc_summary"]),
-                        str(full_row["shift_auc_summary"]),
-                    )
-                )
-            st.plotly_chart(_build_ablation_profile_figure(lunarlander_ablation), use_container_width=True)
-            st.caption("This view is interactive: use the controller selector above to compare which kinds of behavior information matter for different LunarLander controllers.")
-
-        if not baseline_df.empty:
-            st.markdown('<div class="section-chip">Method Comparison</div>', unsafe_allow_html=True)
-            st.subheader("RLVA Vs Simpler Checks")
-            baseline_controls = st.columns(3)
-            with baseline_controls[0]:
-                baseline_env_options = sorted(baseline_df["env"].unique().tolist())
-                baseline_env = st.selectbox(
-                    "System for comparison",
-                    options=baseline_env_options,
-                    index=_control_default(baseline_env_options, controls["env"]),
-                    format_func=lambda name: ENV_LABELS.get(name, name),
-                )
-            with baseline_controls[1]:
-                env_policies = sorted(baseline_df[baseline_df["env"] == baseline_env]["policy"].unique().tolist())
-                baseline_policy = st.selectbox("Controller for comparison", options=env_policies, index=_control_default(env_policies, controls["policy"]), format_func=_format_policy_name)
-            with baseline_controls[2]:
-                baseline_metric = st.selectbox(
-                    "Comparison score",
-                    options=["anomaly_auc", "shift_auc", "shift_localization_error"],
-                    index=_control_default(["anomaly_auc", "shift_auc", "shift_localization_error"], controls["metric"] if controls["metric"] in ["anomaly_auc", "shift_auc", "shift_localization_error"] else "shift_auc"),
-                    format_func=_metric_label,
-                )
-            baseline_extra = st.columns(2)
-            with baseline_extra[0]:
-                normalize_baseline = st.checkbox("Normalize relative to RLVA", value=False)
-            with baseline_extra[1]:
-                only_beating = st.checkbox("Show only methods that beat RLVA", value=False)
-            st.plotly_chart(
-                _build_baseline_comparison_figure(
-                    benchmark_df=benchmark_df,
-                    baseline_df=baseline_df,
-                    env_name=baseline_env,
-                    policy_name=baseline_policy,
-                    metric=baseline_metric,
-                ),
-                use_container_width=True,
-            )
-            if baseline_metric in LOWER_IS_BETTER_METRICS:
-                st.caption("For localization error, smaller values are better, so the chart is sorted accordingly.")
-            else:
-                st.caption("This comparison matters because it shows whether the project method adds value beyond simpler checks.")
-            baseline_table = _baseline_comparison_frame(benchmark_df, baseline_df, baseline_env, baseline_policy, baseline_metric, normalize_baseline)
-            if only_beating and not baseline_table.empty:
-                baseline_table = baseline_table[baseline_table["method"].eq("RLVA") | baseline_table["beats_rlva"]]
-            if not baseline_table.empty:
-                baseline_plot = baseline_table.copy()
-                baseline_plot = baseline_plot.sort_values("display_score", ascending=_metric_ascending(baseline_metric))
-                st.plotly_chart(
-                    _build_ranked_bar(
-                        baseline_plot,
-                        x="method",
-                        y="display_score",
-                        color="beats_rlva",
-                        title="Simpler-Method Drill-Down",
-                    ),
-                    use_container_width=True,
-                )
-                _render_metric_cards_from_frame(
-                    baseline_plot.sort_values("display_score", ascending=_metric_ascending(baseline_metric)),
-                    label_col="method",
-                    value_col="display_score",
-                    max_items=min(3, len(baseline_plot)),
-                )
-
-        if not sensitivity_df.empty:
-            st.markdown('<div class="section-chip">Robustness</div>', unsafe_allow_html=True)
-            st.subheader("Sensitivity To Analysis Budget")
-            sens_controls = st.columns(5)
-            with sens_controls[0]:
-                sens_env_options = sorted(sensitivity_df["env"].unique().tolist())
-                sens_env = st.selectbox(
-                    "System",
-                    options=sens_env_options,
-                    index=_control_default(sens_env_options, controls["env"]),
-                    format_func=lambda name: ENV_LABELS.get(name, name),
-                )
-            with sens_controls[1]:
-                sens_policy_options = sorted(sensitivity_df[sensitivity_df["env"] == sens_env]["policy"].unique().tolist())
-                sens_policy = st.selectbox(
-                    "Controller",
-                    options=sens_policy_options,
-                    index=_control_default(sens_policy_options, controls["policy"]),
-                    format_func=_format_policy_name,
-                )
-            with sens_controls[2]:
-                sens_metric = st.selectbox(
-                    "Score to inspect",
-                    options=["anomaly_auc", "shift_auc", "shift_localization_error"],
-                    index=_control_default(["anomaly_auc", "shift_auc", "shift_localization_error"], controls["metric"] if controls["metric"] in ["anomaly_auc", "shift_auc", "shift_localization_error"] else "shift_auc"),
-                    format_func=_metric_label,
-                )
-            with sens_controls[3]:
-                fixed_l = st.selectbox("Fixed segment length", options=sorted(sensitivity_df["L"].unique().tolist()), index=1 if len(sensitivity_df["L"].unique()) > 1 else 0)
-            with sens_controls[4]:
-                fixed_seed_count = st.selectbox("Number of repeated runs", options=sorted(sensitivity_df["seed_count"].unique().tolist()), index=len(sensitivity_df["seed_count"].unique().tolist()) - 1)
-            sens_cols = st.columns(2)
-            with sens_cols[0]:
-                st.plotly_chart(
-                    _build_sensitivity_figure(
-                        sensitivity_df=sensitivity_df,
-                        env_name=sens_env,
-                        policy_name=sens_policy,
-                        metric=sens_metric,
-                        fixed_l=int(fixed_l),
-                        fixed_seed_count=int(fixed_seed_count),
-                    ),
-                    use_container_width=True,
-                )
-            with sens_cols[1]:
-                fixed_t_options = sorted(sensitivity_df["T"].unique().tolist())
-                fixed_t = 600 if 600 in fixed_t_options else fixed_t_options[-1]
-                st.plotly_chart(
-                    _build_window_sensitivity_figure(
-                        sensitivity_df=sensitivity_df,
-                        env_name=sens_env,
-                        policy_name=sens_policy,
-                        metric=sens_metric,
-                        fixed_t=int(fixed_t),
-                        fixed_seed_count=int(fixed_seed_count),
-                    ),
-                    use_container_width=True,
-                )
-            st.caption("Some `nan` regions mean the shortened trace never enters a labeled intervention period. Read these as insufficient reference coverage, not as a method failure.")
-            detail_slice = sensitivity_df[
-                (sensitivity_df["env"] == sens_env)
-                & (sensitivity_df["policy"] == sens_policy)
-                & (sensitivity_df["seed_count"] == fixed_seed_count)
-            ].copy()
-            if not detail_slice.empty:
-                best_setting = detail_slice.sort_values("{0}_mean".format(sens_metric), ascending=_metric_ascending(sens_metric)).iloc[0]
-                st.markdown(
-                    "Best visible setting under the current drill-down: `T={0}`, `L={1}`, `{2}={3:.3f}`.".format(
-                        int(best_setting["T"]),
-                        int(best_setting["L"]),
-                        _metric_label(sens_metric),
-                        float(best_setting["{0}_mean".format(sens_metric)]),
-                    )
-                )
-
-        if not case_index_df.empty:
-            st.markdown('<div class="section-chip">Qualitative Evidence</div>', unsafe_allow_html=True)
-            st.subheader("Example Browser")
-            st.caption("Exported example figures with linked source artifacts.")
-            case_controls = st.columns(3)
-            with case_controls[0]:
-                case_env_options = sorted(case_index_df["env"].unique().tolist())
-                case_env = st.selectbox(
-                    "System",
-                    options=case_env_options,
-                    index=_control_default(case_env_options, controls["env"]),
-                    format_func=lambda name: ENV_LABELS.get(name, name),
-                )
-            with case_controls[1]:
-                case_policy_options = sorted(case_index_df[case_index_df["env"] == case_env]["policy"].unique().tolist())
-                case_policy = st.selectbox(
-                    "Controller",
-                    options=case_policy_options,
-                    index=_control_default(case_policy_options, controls["policy"]),
-                    format_func=_format_policy_name,
-                )
-            with case_controls[2]:
-                case_rows = case_index_df[(case_index_df["env"] == case_env) & (case_index_df["policy"] == case_policy)].copy()
-                case_seed = st.selectbox("Scenario run", options=case_rows["seed"].astype(int).tolist())
-
-            selected_case = case_rows[case_rows["seed"].astype(int) == int(case_seed)]
-            case_image = _figure_image_path("{0}_{1}_case_study".format(case_env, case_policy))
-            if case_image is not None:
-                caption = "{0} / {1} / exported seed {2}".format(
-                    ENV_LABELS.get(case_env, case_env),
-                    _format_policy_name(case_policy),
-                    case_seed,
-                )
-                st.image(str(case_image), caption=caption)
-                if not selected_case.empty:
-                    case_record = selected_case.iloc[0]
-                    st.caption(
-                        "Trace: `{0}` | Summary: `{1}`".format(
-                            Path(str(case_record["trace_path"])).name,
-                            Path(str(case_record["summary_path"])).name,
-                        )
-                    )
-                    note = _case_study_note(case_env, case_policy, int(case_seed))
-                    st.markdown("**Why this case matters.** {0} {1}".format(note["headline"], note["why"]))
-                    linked_case_metrics = benchmark_df[
-                        (benchmark_df["env"] == case_env) & (benchmark_df["policy"] == case_policy)
-                    ]
-                    if not linked_case_metrics.empty:
-                        case_metrics = linked_case_metrics.iloc[0]
-                        metric_cols = st.columns(3)
-                        metric_cols[0].metric("Anomaly AUC", "{0:.3f}".format(float(case_metrics["anomaly_auc_mean"])))
-                        metric_cols[1].metric("Shift AUC", "{0:.3f}".format(float(case_metrics["shift_auc_mean"])))
-                        metric_cols[2].metric("Localization error", "{0:.3f}".format(float(case_metrics["shift_localization_error_mean"])))
-
-    with tabs[2]:
-        st.markdown("**Purpose.** This page answers the third trust question: does the system stay reliable and responsive when a real user interacts with it?")
-        st.markdown('<div class="section-chip">Reliability And Responsiveness</div>', unsafe_allow_html=True)
-        st.subheader("Does The System Stay Reliable And Responsive?")
-        analysis_focus = st.selectbox(
-            "What trust evidence to inspect",
-            options=["Reliability overview", "Repeated-run stability", "Detection snapshot", "Information importance", "Robustness"],
-        )
-        st.caption("Use this selector to inspect different kinds of trust evidence.")
-        explorer_cols = st.columns(2)
-        with explorer_cols[0]:
-            metric = st.selectbox("Summary score", options=["anomaly_auc", "shift_auc", "reward_mean"], key="benchmark_metric", index=["anomaly_auc", "shift_auc", "reward_mean"].index(controls["metric"]) if controls["metric"] in ["anomaly_auc", "shift_auc", "reward_mean"] else 0)
-            bench_plot_df = _filter_like_global(benchmark_df, controls)
-            if bench_plot_df.empty:
-                bench_plot_df = benchmark_df.copy()
-            st.plotly_chart(build_benchmark_overview_figure(bench_plot_df, metric=metric), use_container_width=True)
-        with explorer_cols[1]:
-            env_metric_df = _filter_like_global(benchmark_df, controls)
-            if env_metric_df.empty:
-                env_metric_df = benchmark_df.copy()
-            env_metric_df["env_label"] = env_metric_df["env"].map(lambda name: ENV_LABELS.get(name, name))
-            env_metric_df["policy_label"] = env_metric_df["policy"].map(_format_policy_name)
-            spread_fig = px.scatter(
-                env_metric_df,
-                x="anomaly_auc_mean",
-                y="shift_auc_mean",
-                color="env_label",
-                symbol="policy_label",
-                size="reward_jump_auc_mean",
-                hover_name="policy_label",
-                title="Controller Frontier",
-                labels={"anomaly_auc_mean": "Anomaly AUC", "shift_auc_mean": "Shift AUC"},
-            )
-            spread_fig.update_traces(customdata=env_metric_df[["env", "policy"]].to_numpy(), hovertemplate="%{hovertext}<br>Anomaly=%{x:.3f}<br>Shift=%{y:.3f}<extra></extra>")
-            spread_fig.update_layout(template="plotly_white", legend_title="")
-            spread_selection = _plotly_chart_with_optional_selection(
-                spread_fig,
-                use_container_width=True,
-            )
-            spread_points = _extract_points(spread_selection)
-            if spread_points:
-                custom = spread_points[0].get("customdata") if isinstance(spread_points[0], dict) else None
-                if isinstance(custom, (list, tuple)) and len(custom) >= 2:
-                    _queue_global_update(env_name=str(custom[0]), policy=str(custom[1]))
-                    _trigger_rerun()
-        st.subheader("Ranking View")
-        benchmark_table = _benchmark_table_frame(benchmark_df, controls)
-        if not benchmark_table.empty:
-            ranking_plot = benchmark_table.copy()
-            ranking_plot["label"] = ranking_plot["environment"] + " / " + ranking_plot["policy_label"]
-            ranking_fig = _build_ranked_bar(
-                ranking_plot,
-                x="selected_metric",
-                y="label",
-                title="Ranking View",
-                color="environment",
-                orientation="h",
-            )
-            ranking_fig.update_traces(customdata=ranking_plot[["environment", "policy_label"]].to_numpy(), hovertemplate="%{y}<br>score=%{x:.3f}<extra></extra>")
-            ranking_selection = _plotly_chart_with_optional_selection(
-                ranking_fig,
-                use_container_width=True,
-            )
-            ranking_points = _extract_points(ranking_selection)
-            if ranking_points:
-                custom = ranking_points[0].get("customdata") if isinstance(ranking_points[0], dict) else None
-                if isinstance(custom, (list, tuple)) and len(custom) >= 2:
-                    env_label = str(custom[0])
-                    policy_label = str(custom[1])
-                    env_match = next((name for name, label in ENV_LABELS.items() if label == env_label), None)
-                    policy_match = next((name for name in BENCHMARK_POLICIES if _format_policy_name(name) == policy_label), None)
-                    if env_match or policy_match:
-                        _queue_global_update(env_name=env_match or controls["env"], policy=policy_match or controls["policy"], metric=metric)
-                        _trigger_rerun()
-            best_table_row = benchmark_table.iloc[0]
-            st.markdown(
-                "Top visible row under the current filters: **{0} / {1}** with selected score `{2:.3f}`.".format(
-                    best_table_row["environment"],
-                    best_table_row["policy_label"],
-                    float(best_table_row["selected_metric"]),
-                )
-            )
-            _render_metric_cards_from_frame(
-                ranking_plot.rename(columns={"label": "rank_label"}),
-                label_col="rank_label",
-                value_col="selected_metric",
-                max_items=min(3, len(ranking_plot)),
-            )
-
-        if not timing_df.empty:
-            st.markdown("**Responsiveness snapshot.** These measurements show whether the interface stays fast enough for live exploration.")
-            timing_cols = st.columns(3)
-            timing_cols[0].metric("Median response", "{0:.1f} ms".format(float(timing_df["latency_ms"].median())))
-            timing_cols[1].metric("Slowest response", "{0:.1f} ms".format(float(timing_df["latency_ms"].max())))
-            timing_cols[2].metric("Measured actions", int(len(timing_df)))
-            latency_threshold = st.slider("Response-time reference (ms)", min_value=0, max_value=1500, value=300, step=50)
-            slow_rows = timing_df[timing_df["latency_ms"] >= float(latency_threshold)]
-            interaction_filter = st.multiselect("Interaction types", options=timing_df["interaction"].tolist(), default=timing_df["interaction"].tolist())
-            filtered_timings = timing_df[timing_df["interaction"].isin(interaction_filter)]
-            if not filtered_timings.empty:
-                st.plotly_chart(_build_timing_figure(filtered_timings), use_container_width=True)
-            if slow_rows.empty:
-                st.success("No measured interaction exceeds the current response-time reference.")
-            else:
-                st.warning("Some interactions exceed the current response-time reference: {0}".format(", ".join(slow_rows["interaction"].tolist())))
-
-        if course_interactivity:
-            st.markdown("**Course-scale interactivity report.** These exported metrics are the report-ready evidence for backend throughput and front-end response time.")
-            interactivity_summary = course_interactivity.get("summary", {})
-            summary_cols = st.columns(4)
-            summary_cols[0].metric(
-                "Weighted backend throughput",
-                "{0:,.0f} rows/s".format(float(interactivity_summary.get("backend_weighted_records_per_second", 0.0))),
-            )
-            summary_cols[1].metric(
-                "Peak backend throughput",
-                "{0:,.0f} rows/s".format(float(interactivity_summary.get("backend_peak_records_per_second", 0.0))),
-            )
-            summary_cols[2].metric(
-                "Median front-end response",
-                "{0:.1f} ms".format(float(interactivity_summary.get("frontend_response_median_ms", 0.0))),
-            )
-            summary_cols[3].metric(
-                "Sub-second actions",
-                "{0}/{1}".format(
-                    int(interactivity_summary.get("frontend_actions_under_one_second", 0)),
-                    int(interactivity_summary.get("frontend_measurements", 0)),
-                ),
-            )
-            measurement_df = pd.DataFrame(course_interactivity.get("measurements", []))
-            if not measurement_df.empty:
-                visible_cols = ["interaction", "layer", "records_processed", "records_per_second", "latency_ms", "note"]
-                st.dataframe(measurement_df[visible_cols], use_container_width=True, hide_index=True)
-            if bool(interactivity_summary.get("frontend_meets_one_second_reference", False)):
-                st.success("The exported course interactivity report satisfies the one-second classroom-response reference.")
-            else:
-                st.warning("At least one exported front-end action is above the one-second classroom-response reference.")
-        else:
-            st.info("Run `python -m rlva.src.measure_course_interactivity` to export course-report throughput and response metrics.")
-
-        if not submission_inventory.empty:
-            st.markdown("**Submission package.** These files turn the project into a gradeable final-project bundle instead of just a code repository.")
-            st.dataframe(submission_inventory, use_container_width=True, hide_index=True)
-            st.caption("The package lives under `rlva/outputs/benchmark/reports/cs526_submission_package/` and is regenerated by `python -m rlva.src.export_course_deliverables`.")
-        else:
-            st.info("Run `python -m rlva.src.export_course_deliverables` to generate the report outline, presentation storyboard, video script, and submission checklist.")
-
-        if not seed_df.empty:
-            if analysis_focus == "Repeated-run stability":
-                st.info("Recommended reading order: inspect the repeated-run spread first, then compare against the overall benchmark means.")
-            stability_cols = st.columns(2)
-            with stability_cols[0]:
-                stability_env_options = sorted(_filter_like_global(seed_df, controls)["env"].unique().tolist()) if not _filter_like_global(seed_df, controls).empty else sorted(seed_df["env"].unique().tolist())
-                stability_env = st.selectbox(
-                    "Repeated-run system",
-                    options=stability_env_options,
-                    index=_control_default(stability_env_options, controls["env"]),
-                    format_func=lambda name: ENV_LABELS.get(name, name),
-                )
-            with stability_cols[1]:
-                stability_metric = st.selectbox(
-                    "Repeated-run score",
-                    options=["anomaly_auc", "shift_auc", "reward_jump_auc"],
-                    format_func=_metric_label,
-                )
-            st.plotly_chart(
-                _build_seed_stability_figure(seed_df=seed_df, env_name=stability_env, metric=stability_metric),
-                use_container_width=True,
-            )
-
-        if not detection_df.empty:
-            if analysis_focus == "Detection snapshot":
-                st.info("Recommended reading order: start from unusual-behavior and operating-change scores here, then connect them back to the benchmark and simpler-method views.")
-            detection_view = detection_df[detection_df["env"] != "all"].copy()
-            detection_view["label"] = detection_view.apply(
-                lambda row: "{0}<br>{1}".format(ENV_LABELS.get(str(row["env"]), str(row["env"])), _format_policy_name(str(row["policy"]))),
-                axis=1,
-            )
-            long_detection = detection_view.melt(
-                id_vars=["label"],
-                value_vars=["anomaly_auc", "shift_auc", "reward_jump_auc"],
-                var_name="metric",
-                value_name="score",
-            )
-            long_detection["metric"] = long_detection["metric"].map(
-                {"anomaly_auc": "Anomaly AUC", "shift_auc": "Shift AUC", "reward_jump_auc": "Reward-Jump AUC"}
-            )
-            detection_fig = px.bar(
-                long_detection,
-                x="label",
-                y="score",
-                color="metric",
-                barmode="group",
-                color_discrete_sequence=["#b84a39", "#355c7d", "#f0a202"],
-                title="Detection Snapshot",
-            )
-            detection_fig.update_layout(template="plotly_white", xaxis_title="", yaxis_title="score", legend_title="")
-            st.plotly_chart(detection_fig, use_container_width=True)
-
-        if not ablation_df.empty:
-            if analysis_focus == "Information importance":
-                st.info("Recommended reading order: use this section to explain which pieces of summary information matter and whether a reward-only view is sufficient.")
-            st.subheader("What Information Matters")
-            ablation_controls = st.columns(3)
-            with ablation_controls[0]:
-                ablation_env_options = sorted(_filter_like_global(ablation_df, controls)["env"].unique().tolist()) if not _filter_like_global(ablation_df, controls).empty else sorted(ablation_df["env"].unique().tolist())
-                ablation_env = st.selectbox("System", options=ablation_env_options, index=_control_default(ablation_env_options, controls["env"]), format_func=lambda name: ENV_LABELS.get(name, name))
-            with ablation_controls[1]:
-                env_policies = sorted(ablation_df[ablation_df["env"] == ablation_env]["policy"].unique().tolist())
-                ablation_policy = st.selectbox("Controller", options=env_policies, index=_control_default(env_policies, controls["policy"]), format_func=_format_policy_name)
-            with ablation_controls[2]:
-                ablation_metric = st.selectbox("Score to inspect", options=["anomaly_auc", "shift_auc", "reward_mean"], key="ablation_metric")
-            st.plotly_chart(
-                build_ablation_heatmap(ablation_df, env_name=ablation_env, policy_name=ablation_policy, metric=ablation_metric),
-                use_container_width=True,
-            )
-            ablation_slice = ablation_df[(ablation_df["env"] == ablation_env) & (ablation_df["policy"] == ablation_policy)].copy()
-            best_group = ablation_slice.sort_values("{0}_mean".format(ablation_metric), ascending=False).iloc[0]
-            st.markdown(
-                (
-                    "**Takeaway.** For {env} / {policy}, the strongest `{metric}` comes from "
-                    "**{feature_group}** with score `{score:.3f}`."
-                ).format(
-                    env=ENV_LABELS.get(ablation_env, ablation_env),
-                    policy=_format_policy_name(ablation_policy),
-                    metric=ablation_metric,
-                    feature_group=_format_feature_group(str(best_group["feature_group"])),
-                    score=float(best_group["{0}_mean".format(ablation_metric)]),
-                )
-            )
-            ablation_rank = ablation_slice.sort_values("{0}_mean".format(ablation_metric), ascending=_metric_ascending(ablation_metric))[["feature_group", "{0}_mean".format(ablation_metric)]].rename(columns={"{0}_mean".format(ablation_metric): "score"})
-            ablation_rank["feature_group"] = ablation_rank["feature_group"].map(_format_feature_group)
-            st.plotly_chart(
-                _build_ranked_bar(
-                    ablation_rank,
-                    x="score",
-                    y="feature_group",
-                    title="Information-Group Ranking",
-                    orientation="h",
-                ),
-                use_container_width=True,
-            )
-
-        if not robustness_window_df.empty or not robustness_cluster_df.empty:
-            if analysis_focus == "Robustness":
-                st.info("Recommended reading order: use the robustness plots to show that the project conclusions do not depend on one arbitrary setting.")
-            st.subheader("How Stable The Findings Are")
-            robustness_cols = st.columns(2)
-            with robustness_cols[0]:
-                if not robustness_window_df.empty:
-                    robustness_env = st.selectbox(
-                        "Segment-length system",
-                        options=sorted(robustness_window_df["env"].unique().tolist()),
-                        format_func=lambda name: ENV_LABELS.get(name, name),
-                    )
-                    robustness_metric = st.selectbox(
-                        "Segment-length score",
-                        options=["anomaly_auc", "shift_auc", "shift_localization_error"],
-                        format_func=_metric_label,
-                    )
-                    st.plotly_chart(
-                        _build_window_robustness_figure(robustness_window_df, env_name=robustness_env, metric=robustness_metric),
-                        use_container_width=True,
-                    )
-                    st.caption("This view shows whether the conclusions persist as the time-segment length changes.")
-                    robust_slice = robustness_window_df[robustness_window_df["env"] == robustness_env].sort_values("{0}_mean".format(robustness_metric), ascending=_metric_ascending(robustness_metric))
-                    robust_slice = robust_slice.copy()
-                    robust_slice["policy_label"] = robust_slice["policy"].map(_format_policy_name)
-                    robust_slice["setting"] = robust_slice["policy_label"] + " / L=" + robust_slice["window_length"].astype(int).astype(str)
-                    st.plotly_chart(
-                        _build_ranked_bar(
-                            robust_slice.rename(columns={"{0}_mean".format(robustness_metric): "score"}),
-                            x="score",
-                            y="setting",
-                            title="Segment-Length Stability Ranking",
-                            color="policy_label",
-                            orientation="h",
-                        ),
-                        use_container_width=True,
-                    )
-            with robustness_cols[1]:
-                if not robustness_cluster_df.empty:
-                    cluster_env = st.selectbox(
-                        "Behavior-group system",
-                        options=sorted(robustness_cluster_df["env"].unique().tolist()),
-                        format_func=lambda name: ENV_LABELS.get(name, name),
-                    )
-                    st.plotly_chart(
-                        _build_cluster_robustness_figure(robustness_cluster_df, env_name=cluster_env),
-                        use_container_width=True,
-                    )
-                    st.caption("This view tracks whether the strongest controller difference remains stable as the behavior-group granularity changes.")
-                    cluster_slice = robustness_cluster_df[robustness_cluster_df["env"] == cluster_env].sort_values("top1_js_div_mean", ascending=False)
-                    cluster_slice = cluster_slice.copy()
-                    cluster_slice["pair"] = cluster_slice["policy_1"].map(_format_policy_name) + " vs " + cluster_slice["policy_2"].map(_format_policy_name)
-                    cluster_slice["setting"] = cluster_slice["pair"] + " / K=" + cluster_slice["cluster_count"].astype(int).astype(str)
-                    st.plotly_chart(
-                        _build_ranked_bar(
-                            cluster_slice.rename(columns={"top1_js_div_mean": "score"}),
-                            x="score",
-                            y="setting",
-                            title="Behavior-Group Stability Ranking",
-                            color="pair",
-                            orientation="h",
-                        ),
-                        use_container_width=True,
-                    )
-def _render_figures_panel() -> None:
-    _render_active_dataset_banner()
-    benchmark_df = cached_report_csv("benchmark_table.csv")
-    if benchmark_df.empty:
-        st.warning("Benchmark reports are not available yet. Run the benchmark pipeline first.")
-        return
-
-    controls = _global_controls(benchmark_df)
-    coverage_df = cached_artifact_coverage()
-    case_index_df = _case_study_index()
-    asset_catalog = cached_asset_catalog()
-
-    st.markdown(
-        """
-    <div class="hero-shell">
-        <div class="hero-kicker">Project Showcase</div>
-        <div class="hero-title">Figures And Examples</div>
-        <p class="hero-copy">
-            This workspace packages the visual evidence behind the diagnostic system so a user can quickly find the
-            best figure or example for a report, review meeting, or classroom presentation.
-        </p>
-    </div>
-    """,
-        unsafe_allow_html=True,
+    save_cols[2].download_button(
+        "Download windows CSV",
+        data=filtered_df.to_csv(index=False).encode("utf-8"),
+        file_name="{0}_{1}_windows.csv".format(env_name, policy),
+        mime="text/csv",
+        use_container_width=True,
     )
-
-    st.markdown("**Purpose.** This page is the presentation layer of the project: figures, curated examples, and source-linked evidence.")
-    if not coverage_df.empty:
-        st.caption("The inventory below counts traces and summaries for all five controller families, and model checkpoints for the learned controllers only (`pg`, `ppo`, `dqn`).")
-        st.plotly_chart(_build_coverage_figure(coverage_df), use_container_width=True)
-    if not case_index_df.empty:
-        st.info("Current case-study assets are a curated subset of exported examples. Right now they cover `dqn` only, so treat them as selected qualitative evidence rather than complete controller coverage.")
-
-    if not asset_catalog.empty:
-        if "pending_asset_category" in st.session_state:
-            st.session_state["asset_category_selector"] = st.session_state.pop("pending_asset_category")
-        asset_controls = st.columns(3)
-        with asset_controls[0]:
-            asset_category = st.selectbox(
-                "Figure type",
-                options=["paper_figure", "case_study"],
-                key="asset_category_selector",
-                format_func=lambda value: "Project figure" if value == "paper_figure" else "Example case",
-            )
-        filtered_assets = asset_catalog[asset_catalog["category"] == asset_category].copy()
-        if controls["env"] != "all":
-            filtered_assets = filtered_assets[(filtered_assets["env"].isna()) | (filtered_assets["env"] == controls["env"])]
-        if controls["policy"] != "all":
-            filtered_assets = filtered_assets[(filtered_assets["policy"].isna()) | (filtered_assets["policy"] == controls["policy"])]
-        with asset_controls[1]:
-            env_options = ["all"] + sorted([value for value in filtered_assets["env"].dropna().unique().tolist()])
-            selected_env = st.selectbox(
-                "System",
-                options=env_options,
-                format_func=lambda value: "All environments" if value == "all" else ENV_LABELS.get(value, value),
-            )
-        if selected_env != "all":
-            filtered_assets = filtered_assets[filtered_assets["env"] == selected_env]
-        with asset_controls[2]:
-            if asset_category == "case_study":
-                policy_options = ["all"] + sorted([value for value in filtered_assets["policy"].dropna().unique().tolist()])
-                selected_policy = st.selectbox(
-                    "Controller",
-                    options=policy_options,
-                    format_func=lambda value: "All policies" if value == "all" else _format_policy_name(value),
-                )
-                if selected_policy != "all":
-                    filtered_assets = filtered_assets[filtered_assets["policy"] == selected_policy]
-            else:
-                selected_policy = "all"
-                st.markdown("`Controller filter` is not used for global project figures.")
-
-        if filtered_assets.empty:
-            st.warning("No figures match the current filters.")
-            return
-
-        asset_labels = filtered_assets["stem"].tolist()
-        asset_state_key = "selected_asset_{0}".format(asset_category)
-        if asset_state_key not in st.session_state or st.session_state[asset_state_key] not in asset_labels:
-            st.session_state[asset_state_key] = asset_labels[0]
-        selected_asset = str(st.session_state[asset_state_key])
-        selected_row = filtered_assets[filtered_assets["stem"] == selected_asset].iloc[0]
-        asset_path = Path(str(selected_row["png_path"]))
-        left, right = st.columns([3, 2])
-        with left:
-            st.image(str(asset_path), caption=selected_row["stem"])
-        with right:
-            st.markdown("**Active figure.** {0}".format(_asset_label(selected_row)))
-            st.markdown("**Description.** {0}".format(str(selected_row["description"]) or "Exported figure from the benchmark pipeline."))
-            st.markdown("**PNG path.** `{0}`".format(asset_path.name))
-            pdf_path = Path(str(selected_row["pdf_path"]))
-            if pdf_path.exists():
-                st.markdown("**PDF pair.** `{0}`".format(pdf_path.name))
-            if str(selected_row["category"]) == "case_study" and not case_index_df.empty:
-                match = case_index_df[
-                    (case_index_df["env"] == selected_row["env"])
-                    & (case_index_df["policy"] == selected_row["policy"])
-                ]
-                if not match.empty:
-                    case_row = match.iloc[0]
-                    note = _case_study_note(str(case_row["env"]), str(case_row["policy"]), int(case_row["seed"]))
-                    st.markdown("**Why this case matters.** {0} {1}".format(note["headline"], note["why"]))
-                    st.markdown("**Source trace.** `{0}`".format(Path(str(case_row["trace_path"])).name))
-                    st.markdown("**Source summary.** `{0}`".format(Path(str(case_row["summary_path"])).name))
-
-        st.subheader("Figure Gallery")
-        st.caption("Select a card below to switch the main viewer.")
-        thumb_assets = filtered_assets.copy().reset_index(drop=True)
-        thumb_assets["thumb_label"] = thumb_assets.apply(_asset_label, axis=1)
-        for start in range(0, len(thumb_assets), 4):
-            row_assets = thumb_assets.iloc[start : start + 4]
-            thumb_cols = st.columns(len(row_assets))
-            for idx, (_, asset) in enumerate(row_assets.iterrows()):
-                with thumb_cols[idx]:
-                    active_class = " asset-card-active" if str(asset["stem"]) == str(st.session_state[asset_state_key]) else ""
-                    st.markdown('<div class="asset-card{0}">'.format(active_class), unsafe_allow_html=True)
-                    st.image(str(asset["png_path"]), caption=asset["thumb_label"])
-                    if str(asset["stem"]) == str(st.session_state[asset_state_key]):
-                        st.markdown("**Selected**")
-                    if st.button("Focus", key="thumb_{0}_{1}".format(asset_category, asset["stem"]), type="secondary"):
-                        st.session_state[asset_state_key] = str(asset["stem"])
-                        _trigger_rerun()
-                    if str(asset["description"]):
-                        st.caption(str(asset["description"]))
-                    st.markdown("</div>", unsafe_allow_html=True)
-        if asset_category == "case_study" and not case_index_df.empty:
-            compare_options = case_index_df.apply(
-                lambda row: "{0} / {1} / seed {2}".format(
-                    _format_env_name(str(row["env"])),
-                    _format_policy_name(str(row["policy"])),
-                    int(row["seed"]),
-                ),
-                axis=1,
-            ).tolist()
-            selected_compare = st.multiselect("Compare example notes", options=compare_options, default=compare_options[: min(2, len(compare_options))])
-            for label in selected_compare:
-                idx = compare_options.index(label)
-                row = case_index_df.iloc[idx]
-                note = _case_study_note(str(row["env"]), str(row["policy"]), int(row["seed"]))
-                st.markdown("- **{0}**: {1} {2}".format(label, note["headline"], note["why"]))
-
-
-def _render_course_deliverables_panel() -> None:
-    _render_active_dataset_banner()
-    st.markdown(
-        """
-    <div class="hero-shell">
-        <div class="hero-kicker">Instructor Workspace</div>
-        <div class="hero-title">Course Deliverables And Admin Assets</div>
-        <p class="hero-copy">
-            This panel collects the grading-facing artifacts: the final brief, the interactivity report,
-            the submission package, and the persistent case notebook created by users.
-        </p>
-    </div>
-    """,
-        unsafe_allow_html=True,
-    )
-
-    brief_path = BENCHMARK_REPORT_DIR / "cs526_final_project_brief.md"
-    interactivity_path = BENCHMARK_REPORT_DIR / "course_interactivity_report.md"
-    task_performance_path = BENCHMARK_REPORT_DIR / "course_task_performance_report.md"
-    notebook_path = USER_CASE_NOTEBOOK_PATH
-    submission_inventory = cached_submission_package_inventory()
-    task_performance_metrics = cached_course_task_performance_metrics()
-    task_performance_summary = task_performance_metrics.get("summary", {}) if task_performance_metrics else {}
-
-    artifact_rows = [
-        {"label": "Final project brief", "path": brief_path},
-        {"label": "Interactivity report", "path": interactivity_path},
-        {"label": "User task performance report", "path": task_performance_path},
-    ]
-    if notebook_path.exists():
-        artifact_rows.append({"label": "User case notebook", "path": notebook_path})
-    for _, row in submission_inventory.iterrows():
-        artifact_rows.append({"label": str(row["artifact"]), "path": COURSE_SUBMISSION_DIR / str(row["artifact"])})
-
-    artifact_df = pd.DataFrame(artifact_rows)
-    summary_cols = st.columns(5)
-    summary_cols[0].metric("Submission files", int(len(submission_inventory)))
-    summary_cols[1].metric("Notebook entries", int(len(_case_notebook_frame())))
-    summary_cols[2].metric("Brief present", "Yes" if brief_path.exists() else "No")
-    summary_cols[3].metric("Interactivity report", "Yes" if interactivity_path.exists() else "No")
-    summary_cols[4].metric("Completed user tasks", int(task_performance_summary.get("completed_tasks", 0)))
-
-    if task_performance_summary:
-        st.info(
-            "User-task evaluation: median completion time `{0:.1f}s`, support-signal rate `{1:.1%}`, export usage rate `{2:.1%}`.".format(
-                float(task_performance_summary.get("median_duration_seconds", 0.0)),
-                float(task_performance_summary.get("support_signal_rate", 0.0)),
-                float(task_performance_summary.get("export_completion_rate", 0.0)),
-            )
-        )
-
-    if not submission_inventory.empty:
-        st.dataframe(submission_inventory, use_container_width=True, hide_index=True)
-
-    if artifact_df.empty:
-        st.info("No deliverable artifacts are available yet.")
-        return
-
-    selected_label = st.selectbox("Artifact preview", options=artifact_df["label"].tolist())
-    selected_row = artifact_df[artifact_df["label"] == selected_label].iloc[0]
-    selected_path = Path(str(selected_row["path"]))
-    if not selected_path.exists():
-        st.warning("The selected artifact is not available on disk.")
-        return
-    st.caption("Previewing `{0}`".format(selected_path))
-    content = selected_path.read_text(encoding="utf-8")
-    st.code(content, language="markdown" if selected_path.suffix in {".md", ".jsonl"} else None)
-
-
-def _render_instructor_workspace() -> None:
-    st.markdown(
-        """
-    <div class="hero-shell">
-        <div class="hero-kicker">Instructor Workspace</div>
-        <div class="hero-title">Evaluation, Assets, And Deliverables</div>
-        <p class="hero-copy">
-            This workspace is for validation, grading, and presentation support. It includes trust metrics,
-            exported figures, interactivity evidence, and course-facing submission materials.
-        </p>
-    </div>
-    """,
-        unsafe_allow_html=True,
-    )
-    panel = st.radio(
-        "Instructor panel",
-        options=["Trust & Evaluation", "Figures & Assets", "Course Deliverables"],
-        horizontal=True,
-    )
-    if panel == "Trust & Evaluation":
-        _render_validation_panel()
-    elif panel == "Figures & Assets":
-        _render_figures_panel()
-    else:
-        _render_course_deliverables_panel()
+    _render_point_explanation_module()
 
 
 def main() -> None:
-    st.set_page_config(page_title="RLVA Results Dashboard", layout="wide")
+    st.set_page_config(page_title=PRIMARY_PRODUCT_NAME, layout="wide")
     _inject_dashboard_css()
-    st.title(PRIMARY_PRODUCT_NAME)
-    st.caption("Traffic-operations review product powered by RLVA, with a separate instructor workspace for evaluation, figures, and course deliverables.")
-
-    panel = st.radio("Workspace", options=["User Workspace", "Instructor Workspace"], horizontal=True)
-    if panel == "User Workspace":
-        _render_demo_panel()
-    else:
-        _render_instructor_workspace()
+    _render_multi_system_dashboard()
 
 
 if __name__ == "__main__":

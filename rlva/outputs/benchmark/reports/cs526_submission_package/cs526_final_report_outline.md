@@ -2,29 +2,29 @@
 
 ## 1. Project Identity
 
-- Product name: `Traffic Operations Review Studio`.
+- Product name: `Decision System Review Studio`.
 - Analytic engine: `RLVA: Behavior-Level Diagnostics for Sequential Decision Policies`.
 - Course framing: interactive visual analytics system plus reproducible benchmark pipeline.
-- Target users: traffic operations analysts, traffic operations supervisors, and technical reviewers.
+- Target users: traffic analysts, inventory planners, service managers, control QA engineers, robotics safety reviewers, supervisors, and technical reviewers.
 
 ## 2. Data And Scale
 
 - Raw course dataset target: close to 1 GB.
 - Processed benchmark trace records: 75000.
 - Processed benchmark summary windows: 1500.
-- Describe why long traffic-control traces require summarization before interactive exploration.
+- Describe why long sequential-decision traces require summarization before interactive exploration.
 
 ## 3. Fundamental Data Questions
 
-- Which traffic windows look behaviorally anomalous?
-- When does a corridor regime shift begin after operating conditions change?
-- Which signal strategies behave differently even when reward differences are small?
+- Which system windows look behaviorally risky?
+- When does the selected system change operating regime?
+- Which controllers behave differently even when reward differences are small?
 
 ## 4. System Design
 
 - Back-end: trace collection, window summarization, anomaly scoring, shift localization, controller comparison, ablation, robustness evaluation, and task-performance aggregation.
-- Front-end: coordinated views linking ranked incident evidence, behavior space, temporal trends, comparison plots, notebook annotations, task logging, and export panels.
-- Execution scenario: a traffic operator inspects suspicious windows and exports decision-ready evidence.
+- Front-end: coordinated views where every main chart is clickable, linking ranked incident evidence, behavior space, temporal trends, comparison plots, notebook annotations, task logging, and export panels.
+- Execution scenario: a user selects one of five systems, inspects risky windows, compares controllers, and exports decision-ready evidence.
 
 ## 5. Evaluation
 
@@ -41,7 +41,7 @@
 - Completed user tasks logged: 3.
 - Median task completion time: 58.0 seconds.
 - Support-signal rate: 100.0%.
-- State whether the one-second classroom-response target was satisfied and why precomputed summaries matter.
+- Explain that click selections update focused windows, signals, systems/controllers, score metrics, and comparison groups while staying within the classroom-response target.
 
 ## 7. Limitations And Next Steps
 
@@ -50,7 +50,7 @@
 
 ## 8. Reproducibility Appendix
 
-- Environment activation: `source rlva/.venv-linux/bin/activate`.
+- Environment activation: `source .venv/bin/activate`.
 - Demo command: `PYTHONPATH=. streamlit run rlva/src/app.py`.
 - Export command: `PYTHONPATH=. python -m rlva.src.run_paper_pipeline --steps evaluate,aggregate,ablation,robustness,exports`.
 

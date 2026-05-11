@@ -2,17 +2,17 @@
 
 ## Project Identity
 
-- Product name: `Traffic Operations Review Studio`.
+- Product name: `Decision System Review Studio`.
 - Analytic engine: `RLVA: Behavior-Level Diagnostics for Sequential Decision Policies`.
 - Project type: user-facing visual analytics system plus reproducible experiment pipeline.
-- Primary target users: traffic operations analysts who triage suspicious corridor behavior and traffic operations supervisors who review signal-strategy safety.
-- Core execution scenario: an analyst loads a traffic benchmark case, filters to suspicious or high-shift windows, inspects linked evidence to isolate the affected corridor interval, compares the active controller against an alternate signal strategy when needed, and exports the focused evidence for an incident handoff or strategy review meeting.
+- Primary target users: operations analysts, inventory planners, service managers, control QA engineers, robotics safety reviewers, and supervisors who review controller behavior.
+- Core execution scenario: a user selects one of five decision systems, clicks visual evidence to focus a window, controller, signal, or behavior group, compares the active controller against an alternate controller, and exports a focused decision memo.
 
 ## Fundamental Data Questions
 
-- Which traffic-control windows are suspicious enough to require incident review?
-- When does a corridor regime shift begin after traffic conditions change?
-- Which signal strategies are behaviorally safer even when reward differences are modest?
+- Which time windows are risky enough to require user review?
+- When does the selected system appear to change operating regime?
+- Which controller is safer or more stable for the selected system?
 
 ## Dataset and Processing Scale
 
@@ -24,16 +24,16 @@
 - Total summary windows processed: 1500.
 - Trace storage footprint: 15127460 bytes.
 
-- Course-scale raw dataset path: `/work2/09796/jingxinw7692/frontera/data_analytics/Playground/rlva/outputs/course_dataset/rlva_trace_corpus_close_to_1gb.csv`.
+- Course-scale raw dataset path: `rlva/outputs/course_dataset/rlva_trace_corpus_close_to_1gb.csv.gz`.
 - Course-scale raw dataset records: 4203600.
 - Course-scale raw dataset size: 1020000997 bytes.
 - Course-scale raw dataset bytes per record: 242.649.
 - Course-scale data source: Synthetic large raw trace corpus generated from seeded RLVA benchmark traces with provenance columns preserved.
 ## Interface and Interaction Design
 
-- Front-end: Streamlit dashboard with a traffic-operations user workspace and a separate instructor workspace.
-- Coordinated views: ranked suspicious windows, behavior-space plots, temporal windows, controller-comparison charts, case notebooks, task-performance logging, and an asset browser for course figures and case studies.
-- Interaction components: workflow selectors, system and controller selectors, seed selection, metric toggles, filters, linked comparison views, case annotations, task-completion logging, and review exports.
+- Front-end: Streamlit dashboard focused on five user-facing scenarios; course evidence is exported as a static report instead of being exposed inside the product UI.
+- Coordinated views: system selector, risk-change matrix, priority queue, action mix, timeline, behavior-space plot, focused-signal chart, benchmark heatmap, controller scorecard, controller-comparison charts, case notes, and review exports.
+- Interaction components: every visible Plotly chart supports click selection; clicks update the focused window, action filter, selected signal, selected system/controller, score metric, or comparison group.
 - Interactivity target: precomputed benchmark artifacts are loaded from CSV so classroom interactions stay in the sub-second to few-second range instead of re-running training online.
 
 ## Development Stack
@@ -88,13 +88,13 @@
 
 ## Final Demo Checklist
 
-- Activate the Linux virtual environment in this repository: `source rlva/.venv-linux/bin/activate`.
+- Activate the virtual environment in this repository: `source .venv/bin/activate`.
 - Run the dashboard: `PYTHONPATH=. streamlit run rlva/src/app.py`.
 - Regenerate the paper and course artifacts when needed: `PYTHONPATH=. python -m rlva.src.run_paper_pipeline --steps evaluate,aggregate,ablation,robustness,exports`.
 - Export this course brief again after new experiments: `PYTHONPATH=. python -m rlva.src.export_course_deliverables`.
 
 ## Why This Scores Well In CS526 Terms
 
-- Value of extracted information: the system helps a concrete traffic-operations user isolate suspicious intervals, confirm corridor shifts, compare signal plans, and leave with a documented action instead of only a chart.
+- Value of extracted information: the system helps concrete users across five decision systems isolate risky windows, confirm behavior shifts, compare controllers, and leave with a documented action instead of only a chart.
 - Methods and models: the project combines RL policies, intervention-aware trace collection, window-level summarization, clustering, anomaly scoring, shift localization, ablation, baseline comparison, and explicit task-performance logging.
-- Interactivity: the dashboard links overview metrics, detailed windows, notebook annotations, task logging, policy comparisons, and exported visual evidence in one place.
+- Interactivity: every main chart is clickable and linked, so the dashboard behaves like a coordinated visual analysis tool rather than a static report.
