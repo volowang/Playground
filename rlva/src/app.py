@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import html
 import inspect
 from pathlib import Path
 import json
@@ -217,47 +218,47 @@ SYSTEM_PROFILES: Dict[str, Dict[str, str]] = {
     "traffic": {
         "short_label": "Traffic",
         "user": "Traffic operations analyst",
-        "owner": "traffic incident desk",
-        "problem": "Find risky signal-control windows and confirm corridor regime shifts.",
-        "high_action": "Escalate corridor incident and review the active signal plan.",
-        "moderate_action": "Review adjacent windows before keeping the signal plan live.",
-        "monitor_action": "Keep monitoring; no immediate handoff is needed.",
+        "owner": "traffic team",
+        "problem": "Find signal windows that may cause congestion.",
+        "high_action": "Check this traffic window now. The signal plan may not fit current road conditions.",
+        "moderate_action": "Review nearby traffic windows before keeping this signal plan.",
+        "monitor_action": "Keep watching this traffic window. It does not need action yet.",
     },
     "inventory": {
         "short_label": "Inventory",
         "user": "Inventory planner",
-        "owner": "replenishment planning desk",
-        "problem": "Spot demand shocks, stock-risk windows, and unstable replenishment policies.",
-        "high_action": "Escalate stock-risk window and revise the replenishment rule.",
-        "moderate_action": "Review demand-shift evidence before approving the controller.",
-        "monitor_action": "Monitor the policy; current evidence is low risk.",
+        "owner": "inventory team",
+        "problem": "Find windows that may lead to stock problems.",
+        "high_action": "Check this inventory window now. Demand or stock levels may be moving the wrong way.",
+        "moderate_action": "Review nearby inventory windows before approving this plan.",
+        "monitor_action": "Keep watching this inventory window. It does not need action yet.",
     },
     "queue": {
         "short_label": "Queue",
         "user": "Service operations manager",
-        "owner": "queue operations desk",
-        "problem": "Find congestion windows and compare service-scheduling controllers.",
-        "high_action": "Escalate service congestion and rebalance scheduling policy.",
-        "moderate_action": "Review nearby windows before keeping the scheduler active.",
-        "monitor_action": "Keep monitoring normal service behavior.",
+        "owner": "service team",
+        "problem": "Find windows where the line may become too long.",
+        "high_action": "Check this service window now. The queue may be building up.",
+        "moderate_action": "Review nearby queue windows before keeping this schedule.",
+        "monitor_action": "Keep watching this queue window. It does not need action yet.",
     },
     "cartpole": {
         "short_label": "CartPole",
         "user": "Control QA engineer",
-        "owner": "controller validation desk",
-        "problem": "Catch unstable controller behavior before deployment.",
-        "high_action": "Block rollout and inspect the unstable controller window.",
-        "moderate_action": "Run controller comparison before approving the policy.",
-        "monitor_action": "Controller appears stable in the current window.",
+        "owner": "QA team",
+        "problem": "Find windows where the controller may be unstable.",
+        "high_action": "Check this control window now. The controller may be unstable.",
+        "moderate_action": "Review nearby control windows before approving this controller.",
+        "monitor_action": "Keep watching this control window. It looks stable for now.",
     },
     "lunarlander": {
         "short_label": "LunarLander",
         "user": "Robotics safety reviewer",
-        "owner": "robotics safety desk",
-        "problem": "Detect unsafe descent behavior and policy-change windows.",
-        "high_action": "Pause deployment and review the risky landing behavior.",
-        "moderate_action": "Review adjacent descent windows and compare controllers.",
-        "monitor_action": "Continue monitoring; current landing behavior is low risk.",
+        "owner": "robotics team",
+        "problem": "Find landing windows that may be unsafe.",
+        "high_action": "Check this landing window now. The descent may be unsafe.",
+        "moderate_action": "Review nearby landing windows before approving this controller.",
+        "monitor_action": "Keep watching this landing window. It looks safe for now.",
     },
 }
 
@@ -476,6 +477,15 @@ def _inject_dashboard_css() -> None:
         div[data-testid="stMetricLabel"] {
             font-weight: 600;
         }
+        div[data-testid="stMetricValue"] {
+            font-size: 1.02rem;
+            line-height: 1.22;
+            white-space: normal;
+            overflow-wrap: anywhere;
+        }
+        div[data-testid="stMetricDelta"] {
+            font-size: 0.78rem;
+        }
         div[data-testid="stTabs"] button {
             border-radius: 999px;
             padding-left: 1rem;
@@ -509,6 +519,51 @@ def _inject_dashboard_css() -> None:
             margin: 0;
             color: #2f4050;
             line-height: 1.45;
+            font-size: 0.92rem;
+        }
+        .decision-help {
+            margin-top: 0.35rem;
+            color: #64748b;
+            font-size: 0.78rem;
+            line-height: 1.35;
+        }
+        .summary-card {
+            min-height: 5.2rem;
+            background: rgba(255, 255, 255, 0.88);
+            border: 1px solid rgba(39, 68, 93, 0.09);
+            border-radius: 8px;
+            padding: 0.68rem 0.76rem;
+            box-shadow: 0 10px 24px rgba(39, 68, 93, 0.05);
+            overflow-wrap: anywhere;
+        }
+        .summary-card-label {
+            color: #64748b;
+            font-size: 0.70rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            margin-bottom: 0.30rem;
+        }
+        .summary-card-value {
+            color: #1f2a33;
+            font-size: 0.88rem;
+            font-weight: 650;
+            line-height: 1.24;
+        }
+        .summary-card-note {
+            color: #52616f;
+            font-size: 0.75rem;
+            line-height: 1.28;
+            margin-top: 0.32rem;
+        }
+        .control-note {
+            margin: 0.2rem 0 0.65rem 0;
+            padding: 0.46rem 0.7rem;
+            border-radius: 8px;
+            background: rgba(53, 92, 125, 0.08);
+            color: #334155;
+            font-size: 0.78rem;
+            line-height: 1.35;
         }
         </style>
         """,
@@ -1626,6 +1681,41 @@ def _focus_label(focus_name: str) -> str:
     return mapping.get(focus_name, focus_name)
 
 
+def _action_display(action: str) -> str:
+    mapping = {
+        "Escalate now": "Check now",
+        "Review next": "Review next",
+        "Monitor": "Monitor",
+    }
+    return mapping.get(action, action)
+
+
+def _action_filter_label(action: str) -> str:
+    if action == "All actions":
+        return "All"
+    return _action_display(action)
+
+
+def _render_summary_card(label: str, value: Any, note: Optional[str] = None) -> None:
+    note_html = ""
+    if note:
+        note_html = '<div class="summary-card-note">{0}</div>'.format(html.escape(str(note)))
+    st.markdown(
+        """
+        <div class="summary-card">
+            <div class="summary-card-label">{label}</div>
+            <div class="summary-card-value">{value}</div>
+            {note}
+        </div>
+        """.format(
+            label=html.escape(str(label)),
+            value=html.escape(str(value)),
+            note=note_html,
+        ),
+        unsafe_allow_html=True,
+    )
+
+
 def _color_label(color_by: str) -> str:
     mapping = {
         "anomaly_score": "Suspicion level",
@@ -2479,13 +2569,14 @@ def _operational_focus_frame(filtered_df: pd.DataFrame, selected_k: Optional[int
     frame["is_selected"] = frame["k"].astype(int).eq(int(selected_k)) if selected_k is not None else False
 
     def _action(row: pd.Series) -> str:
-        if bool(row.get("gt_intervention", False)) or float(row["priority_index"]) >= 72.0:
+        if bool(row.get("gt_intervention", False)) or float(row["priority_index"]) >= 68.0:
             return "Escalate now"
         if float(row["priority_index"]) >= 42.0:
             return "Review next"
         return "Monitor"
 
     frame["recommended_action"] = frame.apply(_action, axis=1)
+    frame["next_step_label"] = frame["recommended_action"].map(_action_display)
     return frame
 
 
@@ -2495,6 +2586,44 @@ def _focused_action_row(focus_df: pd.DataFrame, selected_k: Optional[int]) -> pd
         if not selected.empty:
             return selected.iloc[0]
     return focus_df.sort_values("priority_index", ascending=False).iloc[0]
+
+
+def _default_focus_window(filtered_df: pd.DataFrame, task_name: str) -> pd.Series:
+    focus_frame = _operational_focus_frame(filtered_df, selected_k=None)
+    if task_name == "Locate shift":
+        return focus_frame.sort_values(["change_index", "priority_index"], ascending=[False, False]).iloc[0]
+    if task_name == "Find anomalies":
+        return focus_frame.sort_values(["priority_index", "risk_index"], ascending=[False, False]).iloc[0]
+    return focus_frame.sort_values(["priority_index", "change_index"], ascending=[False, False]).iloc[0]
+
+
+def _sync_main_control_changes(
+    *,
+    env_name: str,
+    policy: str,
+    selected_seed: Optional[int],
+    task_name: str,
+    focus_preset: str,
+    score_metric: str,
+) -> None:
+    current = {
+        "env": env_name,
+        "policy": policy,
+        "seed": selected_seed,
+        "task": task_name,
+        "focus": focus_preset,
+        "score": score_metric,
+    }
+    previous = st.session_state.get("_multi_control_signature")
+    if isinstance(previous, dict):
+        focus_keys = ["env", "policy", "seed", "task", "focus"]
+        if any(previous.get(key) != current[key] for key in focus_keys):
+            st.session_state["selected_k"] = None
+            st.session_state["selected_cluster"] = None
+            st.session_state["multi_action_filter"] = "All actions"
+        elif previous.get("score") != current["score"]:
+            st.session_state["selected_cluster"] = None
+    st.session_state["_multi_control_signature"] = current
 
 
 def _explain_value(value: Any, digits: int = 3) -> str:
@@ -2630,7 +2759,7 @@ def _set_window_point_explanation(
         _point_explanation_metric("Looks changed", "{0}/100".format(_explain_value(row.get("change_index"), 1))),
         _point_explanation_metric("Result concern", "{0}/100".format(_explain_value(row.get("outcome_stress_index"), 1))),
         _point_explanation_metric("Review priority", "{0}/100".format(_explain_value(row.get("priority_index"), 1))),
-        _point_explanation_metric("Suggested action", action),
+        _point_explanation_metric("Next step", _action_display(action)),
     ]
     _set_point_explanation(
         signature="window:{0}:{1}:{2}:{3}".format(chart, env_name, policy, int(row["k"])),
@@ -2655,11 +2784,11 @@ def _set_action_mix_explanation(action: str, focus_df: pd.DataFrame) -> None:
             "**What it says about this system.** A large bar means many windows need the same level of attention."
         ).format(action),
         metrics=[
-            _point_explanation_metric("Suggested action", action),
+            _point_explanation_metric("Next step", _action_display(action)),
             _point_explanation_metric("Windows", count),
             _point_explanation_metric("Share", "{0:.1%}".format(share)),
         ],
-        next_step="Next: use this filter to focus only on the windows with the same suggested action.",
+        next_step="Next: use this filter to focus only on windows with the same next step.",
     )
 
 
@@ -2762,20 +2891,21 @@ def _build_risk_change_matrix(
     anomaly_threshold: float,
     shift_threshold: float,
 ) -> go.Figure:
+    display_color_map = {_action_display(action): color for action, color in ACTION_COLOR_MAP.items()}
     fig = px.scatter(
         focus_df,
         x="regime_shift_score",
         y="anomaly_score",
-        color="recommended_action",
+        color="next_step_label",
         size="priority_size",
         hover_name="window_label",
-        custom_data=["k", "priority_index", "r_bar", "recommended_action"],
-        color_discrete_map=ACTION_COLOR_MAP,
+        custom_data=["k", "priority_index", "r_bar", "next_step_label", "recommended_action"],
+        color_discrete_map=display_color_map,
         title="Which windows need attention?",
         labels={
             "regime_shift_score": "Looks changed",
             "anomaly_score": "Looks unusual",
-            "recommended_action": "Suggested action",
+            "next_step_label": "Next step",
             "priority_size": "Review priority",
         },
     )
@@ -2784,7 +2914,7 @@ def _build_risk_change_matrix(
         hovertemplate=(
             "%{hovertext}<br>unusual=%{y:.3f}<br>changed=%{x:.3f}<br>"
             "review priority=%{customdata[1]:.1f}<br>result=%{customdata[2]:.3f}"
-            "<br>suggestion=%{customdata[3]}<extra></extra>"
+            "<br>next step=%{customdata[3]}<extra></extra>"
         ),
     )
     fig.add_hline(y=float(anomaly_threshold), line_dash="dot", line_color="#b84a39", opacity=0.70)
@@ -2803,11 +2933,11 @@ def _build_risk_change_matrix(
                         "line": {"width": 3, "color": "#111111"},
                     },
                     name="Selected window",
-                    customdata=selected[["k", "priority_index", "r_bar", "recommended_action"]].to_numpy(),
+                    customdata=selected[["k", "priority_index", "r_bar", "next_step_label", "recommended_action"]].to_numpy(),
                     hovertemplate="selected k=%{customdata[0]}<br>priority=%{customdata[1]:.1f}<extra></extra>",
                 )
             )
-    fig.update_layout(template="plotly_white", height=380, legend_title="Suggested action")
+    fig.update_layout(template="plotly_white", height=380, legend_title="Next step")
     return fig
 
 
@@ -2862,25 +2992,26 @@ def _build_decision_timeline_figure(focus_df: pd.DataFrame, selected_k: Optional
 def _build_priority_queue_figure(focus_df: pd.DataFrame, top_k: int) -> go.Figure:
     view = focus_df.sort_values("priority_index", ascending=False).head(top_k).copy()
     view = view.sort_values("priority_index", ascending=True)
+    display_color_map = {_action_display(action): color for action, color in ACTION_COLOR_MAP.items()}
     fig = px.bar(
         view,
         x="priority_index",
         y="window_label",
-        color="recommended_action",
+        color="next_step_label",
         orientation="h",
-        custom_data=["k", "anomaly_score", "regime_shift_score", "r_bar", "recommended_action"],
-        color_discrete_map=ACTION_COLOR_MAP,
+        custom_data=["k", "anomaly_score", "regime_shift_score", "r_bar", "next_step_label", "recommended_action"],
+        color_discrete_map=display_color_map,
         title="What to check first",
-        labels={"priority_index": "Review priority (0-100)", "window_label": "", "recommended_action": "Suggested action"},
+        labels={"priority_index": "Review priority (0-100)", "window_label": "", "next_step_label": "Next step"},
     )
     fig.update_traces(
         hovertemplate=(
             "%{y}<br>review priority=%{x:.1f}<br>unusual=%{customdata[1]:.3f}"
             "<br>changed=%{customdata[2]:.3f}<br>result=%{customdata[3]:.3f}"
-            "<br>suggestion=%{customdata[4]}<extra></extra>"
+            "<br>next step=%{customdata[4]}<extra></extra>"
         )
     )
-    fig.update_layout(template="plotly_white", height=380, xaxis_range=[0, 105], legend_title="Suggested action")
+    fig.update_layout(template="plotly_white", height=380, xaxis_range=[0, 105], legend_title="Next step")
     return fig
 
 
@@ -2893,20 +3024,22 @@ def _filter_focus_by_action(focus_df: pd.DataFrame, action_filter: str) -> pd.Da
 
 def _build_action_mix_figure(focus_df: pd.DataFrame) -> go.Figure:
     counts = focus_df["recommended_action"].value_counts().rename_axis("recommended_action").reset_index(name="count")
+    counts["next_step_label"] = counts["recommended_action"].map(_action_display)
     counts = counts.sort_values("count", ascending=True)
+    display_color_map = {_action_display(action): color for action, color in ACTION_COLOR_MAP.items()}
     fig = px.bar(
         counts,
         x="count",
-        y="recommended_action",
+        y="next_step_label",
         orientation="h",
         title="Recommended actions",
-        color="recommended_action",
-        color_discrete_map=ACTION_COLOR_MAP,
+        color="next_step_label",
+        color_discrete_map=display_color_map,
         custom_data=["recommended_action"],
-        labels={"count": "Windows", "recommended_action": ""},
+        labels={"count": "Windows", "next_step_label": ""},
     )
     fig.update_traces(
-        hovertemplate="%{customdata[0]}<br>windows=%{x}<extra></extra>",
+        hovertemplate="%{y}<br>windows=%{x}<extra></extra>",
     )
     fig.update_layout(template="plotly_white", height=175, legend_title="", showlegend=False, margin={"t": 48, "b": 18})
     return fig
@@ -3037,10 +3170,11 @@ def _render_visual_decision_cockpit(
     st.markdown(
         """
         <div class="decision-strip">
-            <h3>Suggested action: {action}</h3>
+            <h3>Next step: {action}</h3>
             <p>{decision}</p>
+            <div class="decision-help">Next step means what the user should do with the selected window.</div>
         </div>
-        """.format(action=str(active_row["recommended_action"]), decision=decision["decision"]),
+        """.format(action=_action_display(str(active_row["recommended_action"])), decision=decision["decision"]),
         unsafe_allow_html=True,
     )
     cockpit_cols = st.columns(4)
@@ -3224,6 +3358,23 @@ def _render_multi_system_dashboard() -> None:
             key="multi_score_metric",
             format_func=_metric_label,
         )
+    _sync_main_control_changes(
+        env_name=env_name,
+        policy=policy,
+        selected_seed=selected_seed,
+        task_name=task_name,
+        focus_preset=focus_preset,
+        score_metric=score_metric,
+    )
+    st.markdown(
+        """
+        <div class="control-note">
+            <b>Goal</b>: what problem to look for. <b>View</b>: how strict the window filter is.
+            <b>Score view</b>: which score the lower comparison charts show.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     summary_df = cached_summary(env_name, policy, seed=selected_seed).sort_values("k").reset_index(drop=True)
     if summary_df.empty:
@@ -3260,9 +3411,10 @@ def _render_multi_system_dashboard() -> None:
         top_k_windows = st.slider("Top items", min_value=3, max_value=min(20, len(summary_df)), value=min(8, len(summary_df)))
     with filter_cols[2]:
         action_filter = st.selectbox(
-            "Suggested action",
+            "Next step",
             options=["All actions"] + list(ACTION_COLOR_MAP.keys()),
             key="multi_action_filter",
+            format_func=_action_filter_label,
         )
     with filter_cols[3]:
         anomaly_threshold = st.slider(
@@ -3289,7 +3441,7 @@ def _render_multi_system_dashboard() -> None:
         st.warning("No windows match the current thresholds.")
         return
 
-    top_window = _focus_selected_window(filtered_df, task_name)
+    top_window = _default_focus_window(filtered_df, task_name)
     if st.session_state.get("selected_k") not in filtered_df["k"].astype(int).tolist():
         st.session_state["selected_k"] = int(top_window["k"])
     selected_window = filtered_df[filtered_df["k"] == int(st.session_state["selected_k"])].iloc[0]
@@ -3319,12 +3471,15 @@ def _render_multi_system_dashboard() -> None:
     focus_df = _filter_focus_by_action(_operational_focus_frame(filtered_df, int(selected_window["k"])), action_filter)
     active_row = _focused_action_row(focus_df, int(selected_window["k"]))
 
-    user_cols = st.columns([1.1, 1.5, 1.2, 1.2])
-    user_cols[0].metric("Role", profile["user"])
-    user_cols[1].metric("Scenario", profile["short_label"])
-    user_cols[1].caption(profile["problem"])
-    user_cols[2].metric("Suggested action", str(active_row["recommended_action"]))
-    user_cols[3].metric("Owner", decision["owner"])
+    user_cols = st.columns([1.05, 1.45, 1.0, 0.95])
+    with user_cols[0]:
+        _render_summary_card("Role", profile["user"])
+    with user_cols[1]:
+        _render_summary_card("Scenario", profile["short_label"], profile["problem"])
+    with user_cols[2]:
+        _render_summary_card("Next step", _action_display(str(active_row["recommended_action"])))
+    with user_cols[3]:
+        _render_summary_card("Owner", decision["owner"])
 
     metric_cols = st.columns(5)
     metric_cols[0].metric("Windows", int(len(filtered_df)))
